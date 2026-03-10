@@ -1,0 +1,28 @@
+{
+  "name": "cresium-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for the Cresium virtual wallet API",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "cresium-mcp-server": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "watch": "tsc -w",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "axios": "^1.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}
