@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:sandbox": "SANDBOX_IT=1 bun test test/sandbox.test.ts",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test"
   },
   "dependencies": {

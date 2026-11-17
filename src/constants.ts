@@ -17,6 +17,7 @@ export const LOG_LEVELS = [
 ] as const;
 
 export const UNAUTHORIZED_STATUS = 401;
+export const SERVER_ERROR_STATUS = 500;
 
 /** How this server names itself to MCP peers (clients and the docs server). */
 export const SERVER_INFO = {

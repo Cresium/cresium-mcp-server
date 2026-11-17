@@ -6,10 +6,10 @@ import { toNodeHandler } from "@modelcontextprotocol/node";
 import type { ErrorRequestHandler, Express } from "express";
 import express from "express";
 
+import { API_TOOLS } from "../api/tools.ts";
 import { LOOPBACK_HOSTNAMES } from "../constants.ts";
 import { createMcpEndpoint } from "../mcp/server.ts";
 import { ENVIRONMENTS } from "../partner/constants.ts";
-import type { ToolDef } from "../tools/types.ts";
 import type { AppDeps } from "./types.ts";
 
 export function createApp({ config, logger }: AppDeps): Express {
@@ -28,7 +28,7 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(hostHeaderValidation(allowedHosts));
   app.use(originValidation(allowedHosts));
 
-  const tools: readonly ToolDef[] = [];
+  const tools = API_TOOLS;
   for (const environment of ENVIRONMENTS) {
     const mcp = createMcpEndpoint({
       tools,
