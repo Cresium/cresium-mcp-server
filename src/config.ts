@@ -18,6 +18,9 @@ const secureUrl = z
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   MCP_BASE_URL: secureUrl,
+  CRESIUM_SANDBOX_API_URL: secureUrl,
+  CRESIUM_PRODUCTION_API_URL: secureUrl,
+  TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
 });
 
@@ -30,6 +33,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   return {
     port: e.PORT,
     baseUrl: e.MCP_BASE_URL,
+    apiUrls: {
+      sandbox: e.CRESIUM_SANDBOX_API_URL,
+      production: e.CRESIUM_PRODUCTION_API_URL,
+    },
+    toolTimeoutMs: e.TOOL_TIMEOUT_MS,
     logLevel: e.LOG_LEVEL,
   };
 }

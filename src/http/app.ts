@@ -2,10 +2,14 @@ import {
   hostHeaderValidation,
   originValidation,
 } from "@modelcontextprotocol/express";
+import { toNodeHandler } from "@modelcontextprotocol/node";
 import type { ErrorRequestHandler, Express } from "express";
 import express from "express";
 
 import { LOOPBACK_HOSTNAMES } from "../constants.ts";
+import { createMcpEndpoint } from "../mcp/server.ts";
+import { ENVIRONMENTS } from "../partner/constants.ts";
+import type { ToolDef } from "../tools/types.ts";
 import type { AppDeps } from "./types.ts";
 
 export function createApp({ config, logger }: AppDeps): Express {
@@ -23,6 +27,18 @@ export function createApp({ config, logger }: AppDeps): Express {
     : [hostname];
   app.use(hostHeaderValidation(allowedHosts));
   app.use(originValidation(allowedHosts));
+
+  const tools: readonly ToolDef[] = [];
+  for (const environment of ENVIRONMENTS) {
+    const mcp = createMcpEndpoint({
+      tools,
+      environment,
+      apiBaseUrl: config.apiUrls[environment],
+      timeoutMs: config.toolTimeoutMs,
+      logger,
+    });
+    app.all(`/${environment}`, toNodeHandler({ fetch: mcp }));
+  }
 
   // eslint-disable-next-line max-params -- Express recognizes error middleware by its four parameters.
   const onError: ErrorRequestHandler = (error, _req, res, _next) => {
