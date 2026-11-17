@@ -1,0 +1,38 @@
+name: API spec drift
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  drift:
+    name: bun run spec:update
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          bun install --frozen-lockfile
+
+      - name: Regenerate the catalogue from the published API spec
+        run: |
+          curl -fsSL https://docs.cresium.com/openapi.json -o "$RUNNER_TEMP/openapi.json"
+          bun run spec:update "$RUNNER_TEMP/openapi.json"
+
+      # A stale catalogue rejects new body fields and can sign a body mage no longer accepts.
+      - name: Fail when the bundled catalogue is out of date
+        run: |
+          if ! git diff --exit-code -- src/api/operations.json; then
+            echo "::error::src/api/operations.json differs from docs.cresium.com/openapi.json. Run 'bun run spec:update' and open a PR."
+            exit 1
+          fi

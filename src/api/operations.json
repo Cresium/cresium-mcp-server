@@ -578,7 +578,7 @@
     "method": "POST",
     "path": "/v3/transaction/preview",
     "summary": "Generar preview de transferencia (paso previo a confirmar)",
-    "description": "Crea una transferencia en estado `PREVIEW`. El `toId` sale de `GET /v3/bank-address/{value}`. Para ejecutarla: si la cuenta destino es del mismo titular, confirmala con `PUT /v3/transaction/confirm/{id}`; si es de un tercero, creá una solicitud de firma con `POST /v3/signature-request/TRANSACTION_REQUEST` para que la apruebe un firmante. Al confirmarse pasa a `PENDING` y se procesa sola. Errores: `INVALID_AMOUNT`, `INVALID_CURRENCY`, `MISSING_WALLET`, `INSUFFICIENT_FUNDS` e `INTERNAL_NOTE_TOO_LONG`.",
+    "description": "Crea una transferencia en estado `PREVIEW`. El `toId` sale de `GET /v3/bank-address/{value}`. Si la empresa tiene más de una cuenta CVU, `depositAddressId` elige de cuál sale la plata: es el `id` de una de las cuentas de `GET /v3/balance`; si no se manda, sale del CVU principal más antiguo. Para ejecutarla: si la cuenta destino es del mismo titular, confirmala con `PUT /v3/transaction/confirm/{id}`; si es de un tercero, creá una solicitud de firma con `POST /v3/signature-request/TRANSACTION_REQUEST` para que la apruebe un firmante. Al confirmarse pasa a `PENDING` y se procesa sola. Errores: `INVALID_AMOUNT`, `INVALID_CURRENCY`, `MISSING_WALLET`, `INSUFFICIENT_FUNDS`, `INTERNAL_NOTE_TOO_LONG` y `NOT_FOUND` si `depositAddressId` no es una de las cuentas CVU de `GET /v3/balance`.",
     "tags": ["Transacciones"],
     "parameters": [],
     "body": {
@@ -587,6 +587,10 @@
       "properties": {
         "toId": {
           "description": "ID de la cuenta destino. Sale de `GET /v3/bank-address/{value}`.",
+          "type": "number"
+        },
+        "depositAddressId": {
+          "description": "ID de la cuenta CVU de origen. Sale de `addresses[].id` en `GET /v3/balance`. Si no se manda, la transferencia sale del CVU principal más antiguo de la empresa.",
           "type": "number"
         },
         "amount": {
