@@ -50,7 +50,11 @@ export async function fetchDocPage(
     .replace(/^https?:\/\/[^/]+/, "")
     .replace(/^\/+/, "")
     .replace(/\.mdx?$/, "");
-  const response = await fetch(`${docsUrl}/${normalized}.md`, { signal });
+  // A redirect is not followed: it could point this server at a host other than the docs site.
+  const response = await fetch(`${docsUrl}/${normalized}.md`, {
+    signal,
+    redirect: "manual",
+  });
   if (!response.ok) {
     throw new ToolError(
       `No encontré la página "${path}" (${response.status}). Usá search_docs para encontrar el path correcto.`,

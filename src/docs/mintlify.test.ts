@@ -8,6 +8,14 @@ import { MINTLIFY_TOOLS } from "./constants.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
 
 const requested: string[] = [];
+let otherHostHits = 0;
+const otherHost = Bun.serve({
+  port: 0,
+  fetch: () => {
+    otherHostHits += 1;
+    return new Response("internal only");
+  },
+});
 const fakeMintlify = createMcpHandler(() => {
   const server = new McpServer({ name: "fake-mintlify", version: "0" });
   server.registerTool(
@@ -26,6 +34,9 @@ const docs = Bun.serve({
     const { pathname } = new URL(request.url);
     if (pathname === "/mcp") return fakeMintlify.fetch(request);
     requested.push(pathname);
+    if (pathname === "/moved.md") {
+      return Response.redirect(`${otherHost.url.origin}/internal`, 302);
+    }
     return pathname === "/sandbox.md"
       ? new Response("# Sandbox")
       : new Response("not found", { status: 404 });
@@ -34,7 +45,10 @@ const docs = Bun.serve({
 const docsUrl = `http://localhost:${docs.port}`;
 const signal = new AbortController().signal;
 
-afterAll(() => docs.stop(true));
+afterAll(async () => {
+  await docs.stop(true);
+  await otherHost.stop(true);
+});
 
 describe("callMintlify", () => {
   it("returns the tool's text", async () => {
@@ -72,5 +86,13 @@ describe("fetchDocPage", () => {
     );
     expect(error).toBeInstanceOf(ToolError);
     expect(String(error)).toContain("search_docs");
+  });
+
+  it("does not follow a redirect to another host", async () => {
+    const error: unknown = await fetchDocPage(docsUrl, "moved", signal).catch(
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toBeInstanceOf(ToolError);
+    expect(otherHostHits).toBe(0);
   });
 });
