@@ -1,0 +1,27 @@
+name: Docs MCP contract
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  contract:
+    name: bun run test:docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          bun install --frozen-lockfile
+
+      - run: bun run test:docs

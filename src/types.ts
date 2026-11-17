@@ -7,6 +7,7 @@ export interface Config {
   readonly port: number;
   readonly baseUrl: string;
   readonly apiUrls: Readonly<Record<Environment, string>>;
+  readonly docsUrl: string;
   readonly toolTimeoutMs: number;
   readonly logLevel: LogLevel;
 }

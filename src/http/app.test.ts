@@ -31,6 +31,7 @@ beforeAll(async () => {
   app = await startApp({
     sandbox: sandbox.baseUrl,
     production: production.baseUrl,
+    docs: "http://localhost:9",
   });
 });
 

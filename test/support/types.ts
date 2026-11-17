@@ -37,4 +37,5 @@ export interface RunningApp {
 export interface AppUrls {
   readonly sandbox: string;
   readonly production: string;
+  readonly docs: string;
 }

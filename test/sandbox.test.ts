@@ -1,4 +1,4 @@
-// End-to-end against Cresium's sandbox: real MCP client -> this server -> api.develop.cresium.app .
+// End-to-end against Cresium's sandbox: real MCP client -> this server -> api.develop.cresium.app and docs.cresium.com.
 // Opt-in because it needs a sandbox API key and creates data there: `bun run test:sandbox` with CRESIUM_API_KEY,
 // CRESIUM_SECRET and CRESIUM_COMPANY_ID in .env.
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
@@ -48,6 +48,7 @@ describe.if(enabled)("sandbox end to end", () => {
       MCP_BASE_URL: "http://localhost:3000",
       CRESIUM_SANDBOX_API_URL: SANDBOX_API_URL,
       CRESIUM_PRODUCTION_API_URL: "https://api.cresium.app",
+      CRESIUM_DOCS_URL: "https://docs.cresium.com",
     });
     server = createApp({ config, logger: createLogger("silent") }).listen(0);
     await new Promise((resolve) => server.once("listening", resolve));
@@ -74,7 +75,7 @@ describe.if(enabled)("sandbox end to end", () => {
     server.close();
   });
 
-  it("lists the API tools, marking reads as read-only", async () => {
+  it("lists the API and docs tools, marking reads as read-only", async () => {
     const { tools } = await client.listTools();
     const readOnly = tools
       .filter((tool) => tool.annotations?.readOnlyHint === true)
@@ -82,10 +83,18 @@ describe.if(enabled)("sandbox end to end", () => {
       .sort();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "read_api",
+      "read_doc_page",
       "search_api",
+      "search_docs",
+      "send_docs_feedback",
       "write_api",
     ]);
-    expect(readOnly).toEqual(["read_api", "search_api"]);
+    expect(readOnly).toEqual([
+      "read_api",
+      "read_doc_page",
+      "search_api",
+      "search_docs",
+    ]);
   });
 
   it("reads the company's wallets with a valid signature", async () => {
@@ -133,5 +142,19 @@ describe.if(enabled)("sandbox end to end", () => {
     expect(result.isError).toBe(true);
     expect(result.text).toContain("Cresium respondió 400");
     expect(result.text).toContain("Deposit address not found");
+  });
+
+  it("searches the docs through Mintlify", async () => {
+    const result = await call("search_docs", {
+      query: "verificar firma webhook",
+    });
+    expect(result.isError).toBe(false);
+    expect(result.text.toLowerCase()).toContain("webhook");
+  });
+
+  it("reads a docs page as Markdown", async () => {
+    const result = await call("read_doc_page", { path: "sandbox" });
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("api.develop.cresium.app");
   });
 });

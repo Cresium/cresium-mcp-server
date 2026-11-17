@@ -8,6 +8,7 @@ import express from "express";
 
 import { API_TOOLS } from "../api/tools.ts";
 import { LOOPBACK_HOSTNAMES } from "../constants.ts";
+import { createDocsTools } from "../docs/tools.ts";
 import { createMcpEndpoint } from "../mcp/server.ts";
 import { ENVIRONMENTS } from "../partner/constants.ts";
 import type { AppDeps } from "./types.ts";
@@ -28,7 +29,7 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(hostHeaderValidation(allowedHosts));
   app.use(originValidation(allowedHosts));
 
-  const tools = API_TOOLS;
+  const tools = [...API_TOOLS, ...createDocsTools(config.docsUrl)];
   for (const environment of ENVIRONMENTS) {
     const mcp = createMcpEndpoint({
       tools,

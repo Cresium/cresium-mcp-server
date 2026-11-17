@@ -6,6 +6,7 @@ const VALID = {
   MCP_BASE_URL: "https://mcp.cresium.app/",
   CRESIUM_SANDBOX_API_URL: "https://api.develop.cresium.app",
   CRESIUM_PRODUCTION_API_URL: "https://api.cresium.app/",
+  CRESIUM_DOCS_URL: "https://docs.cresium.com",
 };
 
 describe("loadConfig", () => {

@@ -16,6 +16,7 @@ export async function startApp(urls: AppUrls): Promise<RunningApp> {
     MCP_BASE_URL: "http://localhost:3000",
     CRESIUM_SANDBOX_API_URL: urls.sandbox,
     CRESIUM_PRODUCTION_API_URL: urls.production,
+    CRESIUM_DOCS_URL: urls.docs,
     TOOL_TIMEOUT_MS: "5000",
   });
   const logLines: string[] = [];

@@ -20,6 +20,7 @@ const envSchema = z.object({
   MCP_BASE_URL: secureUrl,
   CRESIUM_SANDBOX_API_URL: secureUrl,
   CRESIUM_PRODUCTION_API_URL: secureUrl,
+  CRESIUM_DOCS_URL: secureUrl,
   TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
 });
@@ -37,6 +38,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
       sandbox: e.CRESIUM_SANDBOX_API_URL,
       production: e.CRESIUM_PRODUCTION_API_URL,
     },
+    docsUrl: e.CRESIUM_DOCS_URL,
     toolTimeoutMs: e.TOOL_TIMEOUT_MS,
     logLevel: e.LOG_LEVEL,
   };
