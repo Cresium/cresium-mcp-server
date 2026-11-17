@@ -1,0 +1,37 @@
+name: SleakOps build
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sleakops-build-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  SLEAKOPS_PROJECT: cresium-mcp
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve environment
+        id: target
+        run: |
+          case "$GITHUB_REF_NAME" in
+            staging) echo "environment=develop" >> "$GITHUB_OUTPUT" ;;
+            main) echo "environment=prod" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Run this workflow from staging or main" && exit 1 ;;
+          esac
+
+      - name: Install SleakOps CLI
+        run: pipx install sleakops
+
+      - name: Run SleakOps build
+        env:
+          SLEAKOPS_KEY: ${{ secrets.SLEAKOPS_KEY }}
+        run: sleakops build -p "$SLEAKOPS_PROJECT" -b "$GITHUB_REF_NAME" -e "${{ steps.target.outputs.environment }}" -w
