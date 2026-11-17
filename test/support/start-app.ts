@@ -8,7 +8,7 @@ import {
 
 import { loadConfig } from "../../src/config.ts";
 import { createApp } from "../../src/http/app.ts";
-import { createLogger } from "../../src/logger.ts";
+import { captureLogger } from "./capture-logger.ts";
 import type { AppUrls, RunningApp } from "./types.ts";
 
 export async function startApp(urls: AppUrls): Promise<RunningApp> {
@@ -19,12 +19,7 @@ export async function startApp(urls: AppUrls): Promise<RunningApp> {
     CRESIUM_DOCS_URL: urls.docs,
     TOOL_TIMEOUT_MS: "5000",
   });
-  const logLines: string[] = [];
-  const logger = createLogger("info", {
-    write: (line: string) => {
-      logLines.push(line);
-    },
-  });
+  const { lines: logLines, logger } = captureLogger();
   const server: Server = createApp({ config, logger }).listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   const { port } = server.address() as AddressInfo;

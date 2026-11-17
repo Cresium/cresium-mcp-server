@@ -9,18 +9,28 @@ export type ToolName = `${string}_${string}`;
 
 export interface ToolContext {
   readonly session: PartnerSession;
-  /** Already bound to the environment, company and masked API key. */
+  /** Already bound to the environment, company, masked API key and trace id. */
   readonly logger: Logger;
+  /** One per tool call; sent to Cresium as `x-trace-id`. */
+  readonly traceId: string;
   readonly signal: AbortSignal;
 }
 
-export interface ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> {
-  readonly name: ToolName;
-  readonly description: string;
-  readonly input: z.ZodObject<Shape>;
-  readonly access: ToolAccess;
-  run(input: z.infer<z.ZodObject<Shape>>, ctx: ToolContext): Promise<string>;
-}
+export type ToolEffect =
+  | { readonly access: "read" }
+  | {
+      readonly access: "write";
+      /** Appended to a failure we cannot attribute, when the write may have been applied anyway. */
+      readonly unknownOutcomeAdvice: string;
+    };
+
+export type ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> =
+  ToolEffect & {
+    readonly name: ToolName;
+    readonly description: string;
+    readonly input: z.ZodObject<Shape>;
+    run(input: z.infer<z.ZodObject<Shape>>, ctx: ToolContext): Promise<string>;
+  };
 
 export interface ToolCall {
   readonly tool: ToolDef;

@@ -13,6 +13,8 @@ import {
 import { loadConfig } from "../src/config.ts";
 import { createApp } from "../src/http/app.ts";
 import { createLogger } from "../src/logger.ts";
+import { callTool } from "./support/call-tool.ts";
+import type { ToolText } from "./support/types.ts";
 
 const SANDBOX_API_URL = "https://api.develop.cresium.app";
 const enabled = process.env["SANDBOX_IT"] === "1";
@@ -23,24 +25,15 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-interface ToolText {
-  readonly isError: boolean;
-  readonly text: string;
-}
-
 describe.if(enabled)("sandbox end to end", () => {
   let server: Server;
   let client: Client;
 
-  async function call(
+  function call(
     name: string,
     args: Record<string, unknown>,
   ): Promise<ToolText> {
-    const result = await client.callTool({ name, arguments: args });
-    const text = result.content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("");
-    return { isError: result.isError === true, text };
+    return callTool(client, name, args);
   }
 
   beforeAll(async () => {
@@ -82,6 +75,7 @@ describe.if(enabled)("sandbox end to end", () => {
       .map((tool) => tool.name)
       .sort();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "check_connection",
       "read_api",
       "read_doc_page",
       "search_api",
@@ -90,11 +84,18 @@ describe.if(enabled)("sandbox end to end", () => {
       "write_api",
     ]);
     expect(readOnly).toEqual([
+      "check_connection",
       "read_api",
       "read_doc_page",
       "search_api",
       "search_docs",
     ]);
+  });
+
+  it("check_connection confirms the sandbox credentials", async () => {
+    const result = await call("check_connection", {});
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("SANDBOX");
   });
 
   it("reads the company's wallets with a valid signature", async () => {

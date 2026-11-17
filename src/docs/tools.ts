@@ -1,11 +1,15 @@
 import * as z from "zod";
 
+import type { ConnectionGuard } from "../api/types.ts";
 import { defineTool } from "../tools/define.ts";
 import type { ToolDef } from "../tools/types.ts";
-import { MINTLIFY_TOOLS } from "./constants.ts";
+import { DOCS_FEEDBACK_UNKNOWN_OUTCOME, MINTLIFY_TOOLS } from "./constants.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
 
-export function createDocsTools(docsUrl: string): readonly ToolDef[] {
+export function createDocsTools(
+  docsUrl: string,
+  ensureConnected: ConnectionGuard,
+): readonly ToolDef[] {
   const searchDocs = defineTool({
     name: "search_docs",
     description:
@@ -17,12 +21,14 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
         .describe('Qué buscar, por ejemplo "verificar firma de webhook".'),
     }),
     access: "read",
-    run: ({ query }, ctx) =>
-      callMintlify(
+    run: async ({ query }, ctx) => {
+      await ensureConnected(ctx);
+      return await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.search, args: { query, language: "es" } },
         ctx.signal,
-      ),
+      );
+    },
   });
 
   const readDocPage = defineTool({
@@ -36,7 +42,10 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
         .describe("Path de la página, sin dominio ni extensión."),
     }),
     access: "read",
-    run: ({ path }, ctx) => fetchDocPage(docsUrl, path, ctx.signal),
+    run: async ({ path }, ctx) => {
+      await ensureConnected(ctx);
+      return await fetchDocPage(docsUrl, path, ctx.signal);
+    },
   });
 
   const sendDocsFeedback = defineTool({
@@ -48,12 +57,15 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
       feedback: z.string().min(1).describe("Qué está mal o qué falta."),
     }),
     access: "write",
-    run: ({ path, feedback }, ctx) =>
-      callMintlify(
+    unknownOutcomeAdvice: DOCS_FEEDBACK_UNKNOWN_OUTCOME,
+    run: async ({ path, feedback }, ctx) => {
+      await ensureConnected(ctx);
+      return await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.feedback, args: { path, feedback } },
         ctx.signal,
-      ),
+      );
+    },
   });
 
   return [searchDocs, readDocPage, sendDocsFeedback];

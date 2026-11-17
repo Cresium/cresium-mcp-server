@@ -55,16 +55,38 @@ Claude.ai and ChatGPT on the web are not supported: they connect through OAuth a
 
 ## Tools
 
-| Tool                 | Does                                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------------------- |
-| `search_api`         | Finds V3 operations by keyword and returns each one's id, parameters and body schema.               |
-| `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only. |
-| `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.        |
-| `search_docs`        | Searches docs.cresium.com.                                                                          |
-| `read_doc_page`      | Reads one docs page as Markdown.                                                                    |
-| `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                           |
+| Tool                 | Does                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `check_connection`   | Proves your credentials work and says which environment you are on. On an authentication failure it names the header to fix. |
+| `search_api`         | Finds V3 operations by keyword, in Spanish or English. With no query it lists every operation with its summary.              |
+| `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only.                          |
+| `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.                                 |
+| `search_docs`        | Searches docs.cresium.com.                                                                                                   |
+| `read_doc_page`      | Reads one docs page as Markdown.                                                                                             |
+| `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                                                    |
+
+The docs tools also need valid credentials: the server checks them against Cresium before it forwards the call.
 
 `POST /v3/invoice/read` is not available because it uploads files from your disk. Call it through the API directly.
+
+### Dry run
+
+`read_api` and `write_api` accept `"dryRun": true`. The server then sends nothing and returns the exact request: method, full URL, body, and `signedText`, the text your own code must sign. Use it to see a write before it runs, or to find why your code gets `Invalid signature`.
+
+### Prompts
+
+Your agent's prompt menu offers two ready-made tasks:
+
+| Prompt                    | Does                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `integrar_cvus_dedicados` | Runs the dedicated CVU flow in sandbox, then writes the signing client and the webhook in your project. |
+| `depurar_firma`           | Compares the request your code signs with the one this server signs and shows the difference.           |
+
+### Errors and support
+
+Every failed tool call ends with a trace id (`Id de rastreo para soporte: ...`), including timeouts. The exception is arguments that your MCP client or the SDK rejects as invalid before the tool runs. Send it to Cresium support: it finds that exact call in the logs.
+
+The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.
 
 ## How it works
 
@@ -75,14 +97,16 @@ agent ──POST /sandbox── headers: x-api-key · x-api-secret · x-company-
 cresium-mcp  (src/http/app.ts)
   ├─ partner/credentials.ts   reads the 3 headers; 401 if one is missing
   ├─ mcp/server.ts            one MCP server per request, bound to the environment
-  ├─ api/tools.ts             search_api · read_api · write_api over api/operations.json
+  ├─ api/tools.ts             check_connection · search_api · read_api · write_api over api/operations.json
   │    └─ cresium/client.ts   signs HMAC-SHA256(secret, "timestamp|METHOD|url|body") and calls V3
   └─ docs/tools.ts            passes through to docs.cresium.com/mcp (Mintlify)
 ```
 
-- The server stores nothing. Credentials live only for the request that carries them.
+- The server stores no credentials: they live only for the request that carries them. It keeps in memory a one-way hash that says "these credentials worked"; the hash is gone on restart. A success is trusted for 10 minutes, so a docs tool logs one `GET /v3/balance/wallets` check per credential every 10 minutes instead of one per use.
 - Logs are JSON lines (Pino). Each tool call logs the environment, company, the API key's last 4 characters, the tool, the V3 operation, its status and duration. The secret and the full key are never logged, and `src/http/app.test.ts` checks this.
-- `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. Run `bun run spec:update` after the API docs change.
+- Each call to the API carries an `x-trace-id` and the `User-Agent` `cresium-mcp-server/<version>`. The log line of the call has the same trace id.
+- The logger censors the `x-api-key` and `x-api-secret` headers and any `apiKey` or `secret` field, in case new code ever logs them.
+- `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. Run `bun run spec:update` after the API docs change. The `API spec drift` workflow compares it every weekday with the published `docs.cresium.com/openapi.json` and fails when they differ.
 
 ## Develop
 

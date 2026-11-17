@@ -81,6 +81,36 @@ describe("toCresiumRequest", () => {
       expect(build).toThrow(/amount/);
     });
 
+    it("rejects a field the API does not know, naming the valid ones", () => {
+      const build = (): unknown =>
+        toCresiumRequest(deposit, {
+          ...NO_PARAMS,
+          body: { cvu: "000", amount: 1500, ammount: 1 },
+        });
+      expect(build).toThrow(ToolError);
+      expect(build).toThrow(/no conoce ammount\. Campos válidos: .*amount/);
+    });
+
+    it("accepts free-form keys inside a field whose schema allows them", () => {
+      const request = toCresiumRequest(
+        findOperation("POST /v3/payment-order/"),
+        {
+          ...NO_PARAMS,
+          body: {
+            alias: "cobro.pedido",
+            paymentOrder: {
+              externalId: "orden-1",
+              amount: 100,
+              metadata: { pedido: "A-1" },
+            },
+          },
+        },
+      );
+      expect(request.body).toMatchObject({
+        paymentOrder: { metadata: { pedido: "A-1" } },
+      });
+    });
+
     it("rejects a body on an operation that takes none", () => {
       const build = (): unknown =>
         toCresiumRequest(findOperation("GET /v3/balance/wallets"), {

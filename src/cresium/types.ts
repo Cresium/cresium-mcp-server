@@ -33,3 +33,20 @@ export interface CresiumTarget {
   readonly baseUrl: string;
   readonly credentials: PartnerCredentials;
 }
+
+export interface CresiumCallOptions {
+  readonly signal: AbortSignal;
+  /** Sent as `x-trace-id`, so support can find this call in mage's logs. */
+  readonly traceId: string;
+}
+
+/** A request as it would be sent, without credentials or a signature. */
+export interface CresiumRequestPreview {
+  readonly method: HttpMethod;
+  /** Base URL plus path and query string. */
+  readonly url: string;
+  /** JSON body after mage's coercion, or null when there is none. */
+  readonly body: unknown;
+  /** The text to sign with HMAC-SHA256, with a placeholder where the timestamp goes. */
+  readonly signedText: string;
+}

@@ -1,27 +1,27 @@
 import * as z from "zod";
 
-import { SERVER_ERROR_STATUS, UNAUTHORIZED_STATUS } from "../constants.ts";
-import { callCresium } from "../cresium/client.ts";
+import { previewRequest } from "../cresium/client.ts";
+import { DRY_RUN_NOTE } from "../cresium/constants.ts";
 import { toCresiumRequest } from "../cresium/request.ts";
 import { operationCallSchema } from "../cresium/schema.ts";
-import type { CresiumResponse } from "../cresium/types.ts";
-import { UNKNOWN_WRITE_OUTCOME } from "../tools/constants.ts";
+import type { CresiumRequest } from "../cresium/types.ts";
+import { maskApiKey } from "../partner/credentials.ts";
+import { connectedTo } from "../partner/environment.ts";
+import type { PartnerSession } from "../partner/types.ts";
 import { defineTool } from "../tools/define.ts";
 import { ToolError } from "../tools/errors.ts";
 import type {
   ToolAccess,
   ToolContext,
   ToolDef,
+  ToolEffect,
   ToolName,
 } from "../tools/types.ts";
-import { findOperation, searchOperations } from "./operations.ts";
+import { accessOf, assertSucceeded, sendRequest, toJsonText } from "./call.ts";
+import { checkConnection } from "./connection.ts";
+import { API_WRITE_UNKNOWN_OUTCOME, SEARCH_LIMIT } from "./constants.ts";
+import { findOperation, OPERATIONS, searchOperations } from "./operations.ts";
 import type { Operation } from "./types.ts";
-
-const SEARCH_LIMIT = 8;
-
-export function accessOf(operation: Operation): ToolAccess {
-  return operation.method === "GET" ? "read" : "write";
-}
 
 const callInput = operationCallSchema.extend({
   operation: z
@@ -29,9 +29,23 @@ const callInput = operationCallSchema.extend({
     .describe(
       'Id de la operación tal como lo devuelve search_api, por ejemplo "GET /v3/balance/".',
     ),
+  dryRun: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Con true no envía nada: devuelve el pedido exacto (método, URL y body ya normalizado) y el texto que hay que firmar. Sirve para mostrarle al usuario qué se va a ejecutar y para depurar la firma en código propio.",
+    ),
 });
 
 type ApiCallRequest = z.infer<typeof callInput>;
+
+function summarizeOperation(operation: Operation): unknown {
+  return {
+    operation: operation.id,
+    summary: operation.summary,
+    access: accessOf(operation),
+  };
+}
 
 function describeOperation(operation: Operation): unknown {
   return {
@@ -44,60 +58,44 @@ function describeOperation(operation: Operation): unknown {
   };
 }
 
+function dryRunText(request: CresiumRequest, session: PartnerSession): string {
+  const preview = previewRequest(session.apiBaseUrl, request);
+  return toJsonText({
+    dryRun: true,
+    environment: session.environment,
+    ...preview,
+    note: DRY_RUN_NOTE,
+  });
+}
+
 async function callOperation(
   input: ApiCallRequest,
   operation: Operation,
   ctx: ToolContext,
 ): Promise<string> {
   const request = toCresiumRequest(operation, input);
-  const startedAt = performance.now();
-  let status: number | "failed" = "failed";
-  try {
-    const response = await callCresium(
-      { baseUrl: ctx.session.apiBaseUrl, credentials: ctx.session.credentials },
-      request,
-      ctx.signal,
-    );
-    status = response.status;
-    return toolText(response, operation, ctx);
-  } finally {
-    ctx.logger.info(
-      {
-        operation: operation.id,
-        status,
-        durationMs: Math.round(performance.now() - startedAt),
-      },
-      "cresium api call",
-    );
-  }
+  if (input.dryRun) return dryRunText(request, ctx.session);
+  const response = await sendRequest(request, operation, ctx);
+  assertSucceeded(response, operation, ctx.session);
+  return toJsonText(response.body);
 }
 
-function toolText(
-  response: CresiumResponse,
-  operation: Operation,
-  ctx: ToolContext,
-): string {
-  const text = JSON.stringify(response.body, null, 2);
-  if (response.status === UNAUTHORIZED_STATUS) {
-    throw new ToolError(
-      `Cresium rechazó el pedido (401). Revisá x-api-key, x-api-secret y x-company-id, y que la key sea de ${ctx.session.environment}. Respuesta: ${text}`,
-    );
-  }
-  const failed = `Cresium respondió ${response.status}: ${text}`;
-  // A 5xx (often a gateway timeout) can arrive after the write was applied.
-  const writeMayHaveApplied =
-    response.status >= SERVER_ERROR_STATUS && accessOf(operation) === "write";
-  if (writeMayHaveApplied) {
-    throw new ToolError(`${failed} ${UNKNOWN_WRITE_OUTCOME}`);
-  }
-  if (response.status >= 400) throw new ToolError(failed);
-  return text;
-}
+const checkConnectionTool = defineTool({
+  name: "check_connection",
+  description:
+    "Verifica que las credenciales del partner funcionan contra la API de Cresium y dice a qué ambiente está conectado este servidor (sandbox o producción). Usala al empezar y cuando otra tool devuelva un 401: si algo falla, indica cuál de los headers revisar.",
+  input: z.object({}),
+  access: "read",
+  run: async (_input, ctx) => {
+    const { environment, apiBaseUrl, credentials } = ctx.session;
+    await checkConnection(ctx);
+    return `Conexión correcta. ${connectedTo(environment)} API: ${apiBaseUrl}. Empresa: ${credentials.companyId}. API key: ${maskApiKey(credentials.apiKey)}.`;
+  },
+});
 
 const searchApiTool = defineTool({
   name: "search_api",
-  description:
-    "Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o por path. Devuelve el id de cada operación, si lee o escribe, sus parámetros y el schema del body. Usala antes de read_api o write_api. Sin query lista todas; con query devuelve las 8 más relevantes.",
+  description: `Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o inglés, o por path. Usala antes de read_api o write_api. Sin query lista todas las operaciones con su id y resumen; con query devuelve las ${SEARCH_LIMIT} más relevantes con sus parámetros y el schema del body.`,
   input: z.object({
     query: z
       .string()
@@ -108,15 +106,16 @@ const searchApiTool = defineTool({
   }),
   access: "read",
   run: ({ query }) => {
+    if (query.trim() === "") {
+      return Promise.resolve(toJsonText(OPERATIONS.map(summarizeOperation)));
+    }
     const found = searchOperations(query, SEARCH_LIMIT);
     if (found.length === 0) {
       return Promise.resolve(
         `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas.`,
       );
     }
-    return Promise.resolve(
-      JSON.stringify(found.map(describeOperation), null, 2),
-    );
+    return Promise.resolve(toJsonText(found.map(describeOperation)));
   },
 });
 
@@ -126,25 +125,35 @@ const CALL_TOOLS = {
     description:
       "Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. Para escribir usá write_api.",
     wrongAccess: "escribe datos. Usá write_api para ejecutarla.",
+    effect: { access: "read" },
   },
   write: {
     name: "write_api",
     description:
-      "Ejecuta una operación de escritura (todo lo que no es GET) de la API V3 de Cresium con las credenciales del partner: crea o modifica datos reales en el ambiente conectado (sandbox o producción). Confirmá con el usuario antes de usarla en producción.",
+      "Ejecuta una operación de escritura (todo lo que no es GET) de la API V3 de Cresium con las credenciales del partner: crea o modifica datos reales en el ambiente conectado. Confirmá con el usuario antes de usarla en producción; con dryRun: true podés mostrarle antes el pedido exacto.",
     wrongAccess: "es de lectura. Usá read_api.",
+    effect: {
+      access: "write",
+      unknownOutcomeAdvice: API_WRITE_UNKNOWN_OUTCOME,
+    },
   },
 } as const satisfies Record<
   ToolAccess,
-  { name: ToolName; description: string; wrongAccess: string }
+  {
+    name: ToolName;
+    description: string;
+    wrongAccess: string;
+    effect: ToolEffect;
+  }
 >;
 
 function createCallTool(access: ToolAccess): ToolDef {
-  const { name, description, wrongAccess } = CALL_TOOLS[access];
+  const { name, description, wrongAccess, effect } = CALL_TOOLS[access];
   return defineTool({
     name,
     description,
     input: callInput,
-    access,
+    ...effect,
     run: async (input, ctx) => {
       const operation = findOperation(input.operation);
       if (accessOf(operation) !== access) {
@@ -156,6 +165,7 @@ function createCallTool(access: ToolAccess): ToolDef {
 }
 
 export const API_TOOLS: readonly ToolDef[] = [
+  checkConnectionTool,
   searchApiTool,
   createCallTool("read"),
   createCallTool("write"),

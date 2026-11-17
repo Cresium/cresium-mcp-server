@@ -9,9 +9,11 @@ import {
 
 import type { Client } from "@modelcontextprotocol/client";
 
+import { callTool } from "../../test/support/call-tool.ts";
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
 import { startApp } from "../../test/support/start-app.ts";
 import type { FakeCresium, RunningApp } from "../../test/support/types.ts";
+import { OPERATIONS } from "../api/operations.ts";
 
 const API_KEY = "0123456789abcdef0123456789abc017";
 const SECRET = "super-secret-value-that-must-never-be-logged";
@@ -47,18 +49,6 @@ beforeEach(() => {
   sandbox.reply({ status: 200, body: '{"data":{"ok":true}}' });
   app.logLines.length = 0;
 });
-
-async function callTool(
-  client: Client,
-  name: string,
-  args: Record<string, unknown>,
-): Promise<{ isError: boolean; text: string }> {
-  const result = await client.callTool({ name, arguments: args });
-  const text = result.content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("");
-  return { isError: result.isError === true, text };
-}
 
 describe("HTTP", () => {
   it("[GET] /health - 200", async () => {
@@ -153,7 +143,7 @@ describe("MCP over /sandbox and /production", () => {
     expect(apiCall).toMatchObject({
       environment: "sandbox",
       companyId: "44",
-      apiKey: "****c017",
+      apiKeyMasked: "****c017",
       operation: "GET /v3/balance/wallets",
       status: 500,
     });
@@ -191,10 +181,11 @@ describe("API tools", () => {
     const result = await callTool(client, "read_api", {
       operation: "POST /v3/deposit-address/cvu",
     });
-    expect(result).toEqual({
-      isError: true,
-      text: "POST /v3/deposit-address/cvu escribe datos. Usá write_api para ejecutarla.",
-    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toStartWith(
+      "POST /v3/deposit-address/cvu escribe datos. Usá write_api para ejecutarla.",
+    );
+    expect(result.text).toMatch(/Id de rastreo para soporte: [\w-]+\.$/);
     expect(sandbox.received).toHaveLength(0);
   });
 
@@ -235,6 +226,7 @@ describe("API tools", () => {
     expect(result.isError).toBe(true);
     expect(result.text).toContain("Cresium respondió 400");
     expect(result.text).toContain("EXISTING_ALIAS");
+    expect(result.text).not.toContain("x-api-key");
   });
 
   it("signs the body after coercing it the way mage's validation does", async () => {
@@ -274,5 +266,131 @@ describe("API tools", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.text).toContain("antes de reintentar");
+  });
+});
+
+describe("connection, dry run and tracing", () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    client = await app.connect("production", HEADERS);
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  beforeEach(() => {
+    production.reply({ status: 200, body: '{"data":{"ok":true}}' });
+  });
+
+  it("tells the agent which environment it is connected to", async () => {
+    expect(client.getInstructions()).toContain("PRODUCCIÓN");
+    const { tools } = await client.listTools();
+    const descriptions = Object.fromEntries(
+      tools.map((tool) => [tool.name, tool.description ?? ""]),
+    );
+    expect(descriptions["write_api"]).toContain("PRODUCCIÓN");
+    expect(descriptions["read_api"]).not.toContain("PRODUCCIÓN");
+  });
+
+  it("offers the integration prompts", async () => {
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((prompt) => prompt.name).sort()).toEqual([
+      "depurar_firma",
+      "integrar_cvus_dedicados",
+    ]);
+    const { messages } = await client.getPrompt({ name: "depurar_firma" });
+    expect(messages[0]?.content).toMatchObject({ type: "text" });
+  });
+
+  it("check_connection confirms the environment, the company and the masked key", async () => {
+    const result = await callTool(client, "check_connection", {});
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("PRODUCCIÓN");
+    expect(result.text).toContain("Empresa: 44");
+    expect(result.text).toContain("****c017");
+    expect(result.text).not.toContain(API_KEY);
+    expect(production.received[0]?.signatureValid).toBe(true);
+  });
+
+  it.each([
+    [
+      401,
+      "Invalid signature when checking partner authentication",
+      "x-api-secret",
+    ],
+    [
+      401,
+      "Company not found in partner when checking partner authentication",
+      "x-company-id",
+    ],
+    [401, "Partner not found when finding by apiKey", "x-api-key no existe"],
+    [
+      401,
+      "Company is not approved when checking partner authentication",
+      "no está aprobada",
+    ],
+    [
+      403,
+      "Partner does not have permission to access this endpoint",
+      "no tiene permiso",
+    ],
+  ])("check_connection explains %d %s", async (status, message, hint) => {
+    const body = JSON.stringify({ code: status, error: "ERROR", message });
+    production.reply({ status, body });
+    const result = await callTool(client, "check_connection", {});
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain(hint);
+  });
+
+  it("a dry run returns the exact request and sends nothing", async () => {
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/sandbox/deposit",
+      body: { cvu: "0000003100000000000001", amount: "1500" },
+      dryRun: true,
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toMatchObject({
+      dryRun: true,
+      environment: "production",
+      method: "POST",
+      url: `${production.baseUrl}/v3/sandbox/deposit`,
+      body: { cvu: "0000003100000000000001", amount: 1500 },
+      signedText:
+        '<x-timestamp>|POST|/v3/sandbox/deposit|{"cvu":"0000003100000000000001","amount":1500}',
+    });
+    expect(JSON.parse(result.text)).toHaveProperty(
+      "note",
+      expect.stringContaining("No se envió nada"),
+    );
+    expect(result.text).not.toContain(SECRET);
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("puts the trace id Cresium received in the error and in the log", async () => {
+    production.reply({ status: 400, body: '{"error":"EXISTING_ALIAS"}' });
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/deposit-address/cvu",
+      body: { value: "ya.existe" },
+    });
+    const traceId = production.received[0]?.headers.get("x-trace-id") ?? "";
+    expect(traceId).not.toBe("");
+    expect(result.text).toEndWith(`Id de rastreo para soporte: ${traceId}.`);
+    const apiCall = app.logLines
+      .map((line) => JSON.parse(line) as { msg?: string; traceId?: string })
+      .find((entry) => entry.msg === "cresium api call");
+    expect(apiCall?.traceId).toBe(traceId);
+  });
+
+  it("search_api without a query lists every operation without its schema", async () => {
+    const result = await callTool(client, "search_api", {});
+    const entries = JSON.parse(result.text) as Record<string, unknown>[];
+    expect(entries).toHaveLength(OPERATIONS.length);
+    expect(Object.keys(entries[0] ?? {})).toEqual([
+      "operation",
+      "summary",
+      "access",
+    ]);
   });
 });

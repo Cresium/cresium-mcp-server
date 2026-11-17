@@ -1,6 +1,6 @@
 import { Ajv } from "ajv";
 
-import type { Operation } from "../api/types.ts";
+import type { JsonSchema, Operation } from "../api/types.ts";
 import { ToolError } from "../tools/errors.ts";
 import { UNSAFE_PATH_VALUES } from "./constants.ts";
 import type { CresiumRequest, OperationCall, QueryValue } from "./types.ts";
@@ -17,6 +17,28 @@ const ajv = new Ajv({
   validateFormats: false,
 });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null && !Array.isArray(value);
+}
+
+// mage ignores a field its schema does not declare, so a typo like `ammount` would be sent and silently dropped.
+function assertKnownFields(
+  operation: Operation,
+  schema: JsonSchema,
+  body: unknown,
+): void {
+  const { properties } = schema;
+  if (!isRecord(properties) || !isRecord(body)) return;
+  const unknownFields = Object.keys(body).filter(
+    (field) => !(field in properties),
+  );
+  if (unknownFields.length === 0) return;
+  const knownFields = Object.keys(properties).join(", ");
+  throw new ToolError(
+    `Body inválido para ${operation.id}: la API no conoce ${unknownFields.join(", ")}. Campos válidos: ${knownFields}.`,
+  );
+}
+
 function toBody(operation: Operation, body: unknown): unknown {
   if (!body) return;
   if (!operation.body) {
@@ -29,6 +51,7 @@ function toBody(operation: Operation, body: unknown): unknown {
       `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}. Revisá el schema con search_api.`,
     );
   }
+  assertKnownFields(operation, operation.body, prepared);
   return prepared;
 }
 

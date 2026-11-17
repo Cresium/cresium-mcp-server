@@ -6,6 +6,7 @@ import { toNodeHandler } from "@modelcontextprotocol/node";
 import type { ErrorRequestHandler, Express } from "express";
 import express from "express";
 
+import { createConnectionGuard } from "../api/connection.ts";
 import { API_TOOLS } from "../api/tools.ts";
 import { LOOPBACK_HOSTNAMES } from "../constants.ts";
 import { createDocsTools } from "../docs/tools.ts";
@@ -29,7 +30,11 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(hostHeaderValidation(allowedHosts));
   app.use(originValidation(allowedHosts));
 
-  const tools = [...API_TOOLS, ...createDocsTools(config.docsUrl)];
+  const ensureConnected = createConnectionGuard();
+  const tools = [
+    ...API_TOOLS,
+    ...createDocsTools(config.docsUrl, ensureConnected),
+  ];
   for (const environment of ENVIRONMENTS) {
     const mcp = createMcpEndpoint({
       tools,

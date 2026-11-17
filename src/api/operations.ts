@@ -1,9 +1,14 @@
 import * as z from "zod";
 
 import { ToolError } from "../tools/errors.ts";
-import { HTTP_METHODS } from "./constants.ts";
+import {
+  DESCRIPTION_MATCH_SCORE,
+  HTTP_METHODS,
+  SEARCH_SYNONYMS,
+  TITLE_MATCH_SCORE,
+} from "./constants.ts";
 import operationsJson from "./operations.json" with { type: "json" };
-import type { Operation } from "./types.ts";
+import type { Operation, SearchableOperation } from "./types.ts";
 
 const operationSchema: z.ZodType<Operation> = z.object({
   id: z.string(),
@@ -43,27 +48,47 @@ export function findOperation(id: string): Operation {
   return operation;
 }
 
-function searchableText(operation: Operation): string {
-  return [
-    operation.id,
-    operation.summary,
-    operation.description,
-    ...operation.tags,
-  ]
-    .join(" ")
-    .toLowerCase();
+const DIACRITICS = /\p{Diacritic}/gu;
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(DIACRITICS, "").toLowerCase();
+}
+
+function toSearchable(operation: Operation): SearchableOperation {
+  const title = [operation.id, operation.summary, ...operation.tags].join(" ");
+  return {
+    operation,
+    title: normalize(title),
+    description: normalize(operation.description),
+  };
+}
+
+const SEARCHABLE_OPERATIONS: readonly SearchableOperation[] =
+  OPERATIONS.map(toSearchable);
+
+function wordScore(
+  word: string,
+  { title, description }: SearchableOperation,
+): number {
+  const variants = [word, ...(SEARCH_SYNONYMS.get(word) ?? [])];
+  if (variants.some((variant) => title.includes(variant))) {
+    return TITLE_MATCH_SCORE;
+  }
+  if (variants.some((variant) => description.includes(variant))) {
+    return DESCRIPTION_MATCH_SCORE;
+  }
+  return 0;
 }
 
 export function searchOperations(
   query: string,
   limit: number,
 ): readonly Operation[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return OPERATIONS;
-  return OPERATIONS.map((operation) => {
-    const text = searchableText(operation);
-    const score = words.filter((word) => text.includes(word)).length;
-    return { operation, score };
+  const words = normalize(query).split(/\s+/).filter(Boolean);
+  return SEARCHABLE_OPERATIONS.map((searchable) => {
+    const scores = words.map((word) => wordScore(word, searchable));
+    const score = scores.reduce((total, each) => total + each, 0);
+    return { operation: searchable.operation, score };
   })
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)

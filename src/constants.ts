@@ -16,6 +16,7 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
+export const CLIENT_ERROR_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 export const SERVER_ERROR_STATUS = 500;
 
@@ -24,3 +25,8 @@ export const SERVER_INFO = {
   name: packageJson.name,
   version: packageJson.version,
 } as const;
+
+/** Sent on every Cresium API call, so mage's logs tell MCP traffic from direct API traffic. */
+export const USER_AGENT = `${SERVER_INFO.name}/${SERVER_INFO.version}`;
+
+export const SERVICE_NAME = "cresium-mcp";

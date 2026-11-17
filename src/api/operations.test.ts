@@ -1,8 +1,28 @@
 import { describe, expect, it } from "bun:test";
 
-import { UNKNOWN_WRITE_OUTCOME } from "../tools/constants.ts";
+import { PROMPTS, SERVER_INSTRUCTIONS } from "../mcp/constants.ts";
 import { ToolError } from "../tools/errors.ts";
+import {
+  API_WRITE_UNKNOWN_OUTCOME,
+  CONNECTION_CHECK_OPERATION,
+} from "./constants.ts";
 import { findOperation, OPERATIONS, searchOperations } from "./operations.ts";
+
+const OPERATION_REFERENCE =
+  /\b(?:GET|POST|PUT|PATCH|DELETE) \/v3\/[\w/{}-]*[\w/}]/g;
+
+function operationReferences(text: string): string[] {
+  return text.match(OPERATION_REFERENCE) ?? [];
+}
+
+function unknownExample(): string {
+  try {
+    findOperation("unknown");
+  } catch (error) {
+    return error instanceof Error ? error.message : "";
+  }
+  return "";
+}
 
 describe("bundled operations", () => {
   it("has unique ids that match each operation's method and path", () => {
@@ -45,8 +65,32 @@ describe("searchOperations", () => {
     expect(first?.id).toBe("POST /v3/deposit-address/cvu");
   });
 
-  it("lists every operation for an empty query", () => {
-    expect(searchOperations("  ", 5)).toHaveLength(OPERATIONS.length);
+  it("ignores accents and case", () => {
+    const accented = searchOperations("Transacción", 8);
+    expect(accented).toEqual(searchOperations("transaccion", 8));
+    expect(accented.map((operation) => operation.id)).toContain(
+      "GET /v3/transaction/search",
+    );
+  });
+
+  it("ranks a match in the id, summary or tags above one in the description", () => {
+    const ids = searchOperations("transaccion", 6).map(
+      (operation) => operation.id,
+    );
+    expect(ids.every((id) => id.includes("/v3/transaction/"))).toBe(true);
+  });
+
+  it.each([
+    ["refund", "POST /v3/transaction/reverse"],
+    ["devolución", "POST /v3/transaction/reverse"],
+    ["transferir plata", "POST /v3/transaction/preview"],
+  ])("finds %s through its synonym", (query, expected) => {
+    const [first] = searchOperations(query, 3);
+    expect(first?.id).toBe(expected);
+  });
+
+  it("matches nothing for a blank query", () => {
+    expect(searchOperations("  ", 5)).toEqual([]);
   });
 
   it("returns nothing when no word matches", () => {
@@ -55,13 +99,33 @@ describe("searchOperations", () => {
 });
 
 describe("findOperation", () => {
-  it("finds the operation the write-timeout advice tells agents to read", () => {
-    expect(UNKNOWN_WRITE_OUTCOME).toContain("GET /v3/transaction/search");
-    expect(findOperation("GET /v3/transaction/search").method).toBe("GET");
-  });
-
   it("throws a ToolError that points to search_api for an unknown id", () => {
     expect(() => findOperation("GET /v3/nope")).toThrow(ToolError);
     expect(() => findOperation("GET /v3/nope")).toThrow(/search_api/);
+  });
+});
+
+describe("operation ids named in agent-facing text", () => {
+  it("all exist in the bundled operations", () => {
+    const sources = {
+      SERVER_INSTRUCTIONS,
+      PROMPTS: PROMPTS.map(({ text }) => text).join("\n"),
+      API_WRITE_UNKNOWN_OUTCOME,
+      CONNECTION_CHECK_OPERATION,
+      "unknown id error": unknownExample(),
+    };
+    const known = new Set(OPERATIONS.map((operation) => operation.id));
+    for (const [source, text] of Object.entries(sources)) {
+      const references = operationReferences(text);
+      expect(references.length, `${source} names no operation`).toBeGreaterThan(
+        0,
+      );
+      for (const id of references) {
+        expect(
+          known.has(id),
+          `${source} names ${id}, which does not exist`,
+        ).toBe(true);
+      }
+    }
   });
 });
