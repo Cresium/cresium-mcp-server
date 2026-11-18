@@ -14,4 +14,6 @@ export interface Config {
   /** Proxies in front of this server whose X-Forwarded-For entry is believed; 0 uses the socket address. */
   readonly trustedProxyHops: number;
   readonly logLevel: LogLevel;
+  /** Logged once at startup: settings that run but probably are not what the deploy meant. */
+  readonly warnings: readonly string[];
 }

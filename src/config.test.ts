@@ -40,6 +40,24 @@ describe("loadConfig", () => {
     expect(config.trustedProxyHops).toBe(1);
   });
 
+  it("warns once in production when no proxy hop is trusted, since every caller then shares one limit", () => {
+    const { warnings } = loadConfig({ ...VALID, NODE_ENV: "production" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("TRUSTED_PROXY_HOPS");
+    expect(warnings[0]).toContain("one rate limit");
+  });
+
+  it.each([
+    [
+      "production with the hops set",
+      { NODE_ENV: "production", TRUSTED_PROXY_HOPS: "1" },
+    ],
+    ["outside production", { NODE_ENV: "development" }],
+    ["without NODE_ENV", {}],
+  ])("does not warn about the proxy hops %s", (_case, env) => {
+    expect(loadConfig({ ...VALID, ...env }).warnings).toEqual([]);
+  });
+
   it.each([
     ["RATE_LIMIT_PER_MINUTE", "0"],
     ["RATE_LIMIT_PER_MINUTE", "1.5"],

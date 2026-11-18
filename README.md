@@ -78,6 +78,8 @@ The server has to know which IP is the caller's. Behind a proxy, the socket addr
 - Too low (for example `0` behind the ingress): every request appears to come from the ingress, so all partners share one budget of 300 a minute, and one noisy partner locks out the rest.
 - Too high (for example `2` with one proxy): the server believes an entry the caller wrote. Anyone can send `X-Forwarded-For: 1.2.3.4` with a new fake address on each request and never reach the limit.
 
+The deploy must set it (in production the server logs a warning at startup while it is `0`): count the proxies a request crosses before reaching the pod, and confirm by sending one request and counting the addresses your own proxies appended to `X-Forwarded-For`.
+
 The count lives in memory and per pod: with N pods a client can make up to N times the limit, and a restart resets it. To limit before traffic reaches the pods, or across them, do it in the ingress instead. There is no switch to turn it off; set `RATE_LIMIT_PER_MINUTE` high if you must.
 
 ## Tools

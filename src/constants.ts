@@ -16,6 +16,9 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
+export const SHARED_RATE_LIMIT_WARNING =
+  "TRUSTED_PROXY_HOPS is 0: behind a proxy all callers share one rate limit per pod, so one client can lock out everyone. Set it to the number of proxies in front of this server.";
+
 export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 export const TOO_MANY_REQUESTS_STATUS = 429;
