@@ -61,6 +61,8 @@ export const SEARCH_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
   ["account", ["cuenta"]],
   ["transaction", ["transaccion"]],
   ["invoice", ["factura", "cobrar"]],
+  ["cobro", ["pago unico"]],
+  ["cobrar", ["pago unico"]],
   ["create", ["crear"]],
   ["list", ["listar", "buscar"]],
   ["deactivate", ["baja"]],
