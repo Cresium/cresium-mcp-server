@@ -1,3 +1,4 @@
+import type { ValidateFunction } from "ajv";
 import type { z } from "zod";
 
 import type {
@@ -10,11 +11,18 @@ import type { operationSchema } from "./schema.ts";
 
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 
-export type Operation = z.infer<typeof operationSchema>;
+/** One V3 endpoint as operations.json lists it. */
+export type CatalogueEntry = z.infer<typeof operationSchema>;
 
-export type OperationParameter = Operation["parameters"][number];
+/** A catalogue entry whose body schema compiled when the catalogue loaded, so a call never compiles it. */
+export interface Operation extends CatalogueEntry {
+  /** Validates and coerces a body in place; undefined when the endpoint takes none. */
+  readonly validateBody: ValidateFunction | undefined;
+}
 
-export type JsonSchema = NonNullable<Operation["body"]>;
+export type OperationParameter = CatalogueEntry["parameters"][number];
+
+export type JsonSchema = NonNullable<CatalogueEntry["body"]>;
 
 export type QueryValue =
   string | number | boolean | readonly (string | number)[];

@@ -6,9 +6,9 @@ import { $ } from "bun";
 
 import { HTTP_METHODS } from "../src/cresium/constants.ts";
 import type {
+  CatalogueEntry,
   HttpMethod,
   JsonSchema,
-  Operation,
 } from "../src/cresium/types.ts";
 
 const OUTPUT_PATH = new URL("../src/api/operations.json", import.meta.url);
@@ -63,11 +63,23 @@ function toJsonSchema(value: unknown): JsonSchema | null {
     : null;
 }
 
+function assertNoReferences(schema: unknown, operationId: string): void {
+  if (schema == null || typeof schema !== "object") return;
+  if ("$ref" in schema) {
+    throw new Error(
+      `${operationId} contains a $ref; resolve schema references before generating the catalogue.`,
+    );
+  }
+  for (const value of Object.values(schema)) {
+    assertNoReferences(value, operationId);
+  }
+}
+
 function toOperation(
   method: HttpMethod,
   path: string,
   op: OpenApiOperation,
-): Operation {
+): CatalogueEntry {
   const id = `${method} ${path}`;
   const content = op.requestBody?.content;
   const jsonBody = content?.["application/json"];
@@ -75,6 +87,12 @@ function toOperation(
     throw new Error(
       `${id} takes a non-JSON body; add it to EXCLUDED_OPERATIONS or teach the client to send it.`,
     );
+  }
+  assertNoReferences(stripDocOnlyKeys(jsonBody?.schema), id);
+  for (const parameter of op.parameters ?? []) {
+    if (parameter.in === "path" || parameter.in === "query") {
+      assertNoReferences(stripDocOnlyKeys(parameter.schema), id);
+    }
   }
   return {
     id,
@@ -101,14 +119,13 @@ function toOperation(
 }
 
 const spec = await readSpec(process.argv[2]);
-const operations = Object.entries(spec.paths)
-  .flatMap(([path, methods]) =>
-    HTTP_METHODS.flatMap((method) => {
-      const op = methods[method.toLowerCase()];
-      return op ? [toOperation(method, path, op)] : [];
-    }),
-  )
-  .filter((operation) => !EXCLUDED_OPERATIONS.has(operation.id));
+const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
+  HTTP_METHODS.flatMap((method) => {
+    const op = methods[method.toLowerCase()];
+    if (!op || EXCLUDED_OPERATIONS.has(`${method} ${path}`)) return [];
+    return [toOperation(method, path, op)];
+  }),
+);
 
 await Bun.write(OUTPUT_PATH, `${JSON.stringify(operations, null, 2)}\n`);
 console.log(`wrote ${operations.length} operations to ${OUTPUT_PATH.pathname}`);

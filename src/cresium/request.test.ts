@@ -3,9 +3,21 @@ import { describe, expect, it } from "bun:test";
 import { sampleBody } from "../../test/support/sample-body.ts";
 import { findOperation, OPERATIONS } from "../api/operations.ts";
 import { UserFacingError } from "../errors.ts";
-import { toCresiumRequest } from "./request.ts";
+import { compileOperation, toCresiumRequest } from "./request.ts";
 
 const NO_PARAMS = { pathParams: {}, query: {} };
+
+describe("compileOperation", () => {
+  it("refuses a body schema the validator cannot compile, naming the operation", () => {
+    const unresolved = {
+      ...findOperation("POST /v3/sandbox/deposit"),
+      body: { $ref: "#/components/schemas/Deposit" },
+    };
+    expect(() => compileOperation(unresolved)).toThrow(
+      /^Cannot compile the body schema of POST \/v3\/sandbox\/deposit: /,
+    );
+  });
+});
 
 describe("toCresiumRequest", () => {
   describe("url", () => {
@@ -49,14 +61,17 @@ describe("toCresiumRequest", () => {
       );
     });
 
-    it.each(["", ".", ".."])("rejects %p as a path value", (value) => {
-      const build = (): unknown =>
-        toCresiumRequest(findOperation("GET /v3/transaction/{id}"), {
-          ...NO_PARAMS,
-          pathParams: { id: value },
-        });
-      expect(build).toThrow(UserFacingError);
-    });
+    it.each(["", ".", "..", "\uD800"])(
+      "rejects %p as a path value",
+      (value) => {
+        const build = (): unknown =>
+          toCresiumRequest(findOperation("GET /v3/transaction/{id}"), {
+            ...NO_PARAMS,
+            pathParams: { id: value },
+          });
+        expect(build).toThrow(UserFacingError);
+      },
+    );
   });
 
   describe("body", () => {
@@ -163,14 +178,14 @@ describe("toCresiumRequest", () => {
     });
 
     it("sees an unknown field even where the validator would strip it before sending", () => {
-      const closed = {
+      const closed = compileOperation({
         ...deposit,
         body: {
           type: "object",
           properties: { cvu: { type: "string" } },
           additionalProperties: false,
         },
-      };
+      });
       const build = (): unknown =>
         toCresiumRequest(closed, {
           ...NO_PARAMS,
@@ -180,14 +195,14 @@ describe("toCresiumRequest", () => {
     });
 
     it("accepts any key under a schema that explicitly allows additional properties", () => {
-      const open = {
+      const open = compileOperation({
         ...deposit,
         body: {
           type: "object",
           properties: { cvu: { type: "string" } },
           additionalProperties: true,
         },
-      };
+      });
       const request = toCresiumRequest(open, {
         ...NO_PARAMS,
         body: { cvu: "1", libre: "2" },

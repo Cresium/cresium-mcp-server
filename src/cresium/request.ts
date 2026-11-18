@@ -3,6 +3,7 @@ import { Ajv } from "ajv";
 import { UserFacingError } from "../errors.ts";
 import { UNSAFE_PATH_VALUES } from "./constants.ts";
 import type {
+  CatalogueEntry,
   CresiumRequest,
   JsonSchema,
   Operation,
@@ -22,6 +23,22 @@ const ajv = new Ajv({
   strict: false,
   validateFormats: false,
 });
+
+/** Compiles the entry's body schema, so a schema the validator cannot handle fails when the catalogue loads, not on a call. */
+export function compileOperation(entry: CatalogueEntry): Operation {
+  try {
+    return {
+      ...entry,
+      validateBody: entry.body ? ajv.compile(entry.body) : undefined,
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot compile the body schema of ${entry.id}: ${reason}`,
+      { cause: error },
+    );
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value != null && !Array.isArray(value);
@@ -101,12 +118,12 @@ function assertKnownFields(
 
 function toBody(operation: Operation, body: unknown): unknown {
   if (!body) return;
-  if (!operation.body) {
+  const { body: schema, validateBody: validate } = operation;
+  if (!schema || !validate) {
     throw new UserFacingError(`${operation.id} no recibe body.`);
   }
-  assertKnownFields(operation, operation.body, body);
+  assertKnownFields(operation, schema, body);
   const prepared = structuredClone(body);
-  const validate = ajv.compile(operation.body);
   if (!validate(prepared)) {
     throw new UserFacingError(
       `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}. Revisá el schema con search_api.`,
@@ -134,8 +151,12 @@ function toUrl(
     ...Object.keys(pathParams).map((name) => `path:${name}`),
     ...Object.keys(query).map((name) => `query:${name}`),
   ].filter((key) => !declared.has(key));
+  // A lone surrogate cannot be percent-encoded: encodeURIComponent would throw.
   const unsafe = Object.entries(pathParams)
-    .filter(([, value]) => UNSAFE_PATH_VALUES.has(String(value)))
+    .map(([name, value]) => [name, String(value)] as const)
+    .filter(
+      ([, value]) => UNSAFE_PATH_VALUES.has(value) || !value.isWellFormed(),
+    )
     .map(([name]) => `path:${name}`);
   const missing = operation.parameters
     .filter((param) => param.required)
@@ -149,7 +170,7 @@ function toUrl(
     ...(missing.length > 0 ? [`faltan ${missing.join(", ")}`] : []),
     ...(unknown.length > 0 ? [`no existen ${unknown.join(", ")}`] : []),
     ...(unsafe.length > 0
-      ? [`vacíos o "." / ".." en ${unsafe.join(", ")}`]
+      ? [`vacíos, "." / ".." o mal formados en ${unsafe.join(", ")}`]
       : []),
   ];
   if (problems.length > 0) {

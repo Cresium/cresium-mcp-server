@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { compileOperation } from "../cresium/request.ts";
 import { operationSchema } from "../cresium/schema.ts";
 import type { Operation } from "../cresium/types.ts";
 import { UserFacingError } from "../errors.ts";
@@ -12,10 +13,11 @@ import {
 import operationsJson from "./operations.json" with { type: "json" };
 import type { SearchableOperation } from "./types.ts";
 
-// Parsed at startup so a malformed regeneration of operations.json fails loudly instead of at call time.
+// Parsed and compiled at startup so a malformed regeneration of operations.json fails loudly instead of at call time.
 export const OPERATIONS: readonly Operation[] = z
   .array(operationSchema)
-  .parse(operationsJson);
+  .parse(operationsJson)
+  .map(compileOperation);
 
 const OPERATIONS_BY_ID: ReadonlyMap<string, Operation> = new Map(
   OPERATIONS.map((operation) => [operation.id, operation]),

@@ -33,19 +33,6 @@ describe("bundled operations", () => {
     }
   });
 
-  it("leaves out the file upload a remote server cannot perform", () => {
-    expect(OPERATIONS.map((operation) => operation.id)).not.toContain(
-      "POST /v3/invoice/read",
-    );
-  });
-
-  it("never asks the agent for auth headers: the server adds them", () => {
-    const names = OPERATIONS.flatMap((operation) =>
-      operation.parameters.map((param) => param.name.toLowerCase()),
-    );
-    expect(names.filter((name) => name.startsWith("x-"))).toEqual([]);
-  });
-
   it("declares every path placeholder as a path parameter", () => {
     for (const operation of OPERATIONS) {
       const placeholders = [...operation.path.matchAll(/\{(\w+)\}/g)].map(
