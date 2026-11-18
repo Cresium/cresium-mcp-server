@@ -1,10 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
-import { findOperation } from "../api/operations.ts";
 import { UserFacingError } from "../errors.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { callOperation, previewOperation } from "./operation.ts";
+import { compileOperation } from "./request.ts";
 import type { CallRecord } from "./types.ts";
 
 const SECRET = "shh-secret";
@@ -15,8 +15,31 @@ const session: PartnerSession = {
   credentials: { apiKey: "key-1234", secret: SECRET, companyId: "44" },
 };
 const NO_PARAMS = { pathParams: {}, query: {} };
-const PREVIEW = findOperation("POST /v3/transaction/preview");
-const BALANCE = findOperation("GET /v3/balance/");
+const BALANCE = compileOperation({
+  id: "GET /v3/balance/",
+  method: "GET",
+  path: "/v3/balance/",
+  summary: "",
+  description: "",
+  tags: [],
+  parameters: [],
+  body: null,
+});
+const PREVIEW = compileOperation({
+  ...BALANCE,
+  id: "POST /v3/transaction/preview",
+  method: "POST",
+  path: "/v3/transaction/preview",
+  body: {
+    type: "object",
+    properties: {
+      toId: { type: "number" },
+      amount: { type: "string" },
+      currencyCode: { type: "string" },
+    },
+    required: ["toId", "amount", "currencyCode"],
+  },
+});
 const BODY = { toId: 5, amount: "1", currencyCode: "ARS" };
 
 let records: CallRecord[] = [];
@@ -59,6 +82,17 @@ describe("callOperation", () => {
     };
     await callOperation(unreachable, BALANCE, NO_PARAMS).catch(() => undefined);
     expect(records.map(({ status }) => status)).toEqual(["failed"]);
+  });
+
+  it("rethrows a cancelled call unchanged, so the tool runner can say it was cancelled", async () => {
+    const cancelled = { ...context, signal: AbortSignal.abort() };
+    const error: unknown = await callOperation(
+      cancelled,
+      BALANCE,
+      NO_PARAMS,
+    ).catch((thrown: unknown) => thrown);
+    expect(error).not.toBeInstanceOf(UserFacingError);
+    expect(error).toHaveProperty("name", "AbortError");
   });
 
   it("sends nothing and reports nothing for a request mage would reject", async () => {

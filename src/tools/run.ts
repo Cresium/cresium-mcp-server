@@ -63,6 +63,12 @@ async function execute(
     return { content: [{ type: "text", text }] };
   } catch (error) {
     if (error instanceof UserFacingError) {
+      if (error.cause != null) {
+        context.logger.warn(
+          { tool: tool.name, err: error.cause },
+          "tool failed",
+        );
+      }
       return errorResult(
         error.outcomeUnknown && toolStarted
           ? withAdvice(call, error.message)

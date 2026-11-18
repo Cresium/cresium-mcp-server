@@ -116,4 +116,32 @@ describe("scripts/generate-spec.ts", () => {
       ).toBe(catalogue);
     },
   );
+
+  it.each([
+    ["body", "allOf"],
+    ["body", "oneOf"],
+    ["parameter", "allOf"],
+    ["parameter", "oneOf"],
+  ])(
+    "refuses a %s schema with %s, which the unknown-field check does not walk",
+    async (where, combinator) => {
+      const schema = {
+        type: "object",
+        properties: { value: { [combinator]: [{ type: "string" }] } },
+      };
+      const spec =
+        where === "body"
+          ? specWith({
+              requestBody: { content: { "application/json": { schema } } },
+            })
+          : specWith({ parameters: [{ name: "id", in: "path", schema }] });
+      const { code, stderr } = await generate(spec);
+      expect(code).not.toBe(0);
+      expect(stderr).toContain("POST /v3/thing/{id}");
+      expect(stderr).toContain(combinator);
+      expect(
+        await Bun.file(join(directory, "src/api/operations.json")).text(),
+      ).toBe(catalogue);
+    },
+  );
 });

@@ -2,6 +2,7 @@ import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import {
   createMcpHandler,
   DEFAULT_MAX_REQUEST_BODY_SIZE,
+  isJsonContentType,
   McpServer,
   readRequestBody,
 } from "@modelcontextprotocol/server";
@@ -18,11 +19,13 @@ import { runTool } from "../tools/run.ts";
 import type { ToolDef } from "../tools/types.ts";
 import {
   BATCH_REFUSED_MESSAGE,
+  BODY_TOO_LARGE_ANSWER,
+  PAYLOAD_TOO_LARGE_STATUS,
   PROMPTS,
   READ_ONLY_NOTICE,
   SERVER_INSTRUCTIONS,
 } from "./constants.ts";
-import type { AccessMode, McpEndpointOptions } from "./types.ts";
+import type { AccessMode, McpBody, McpEndpointOptions } from "./types.ts";
 
 // A write tool names the environment in its own description, because agents read it right before calling.
 function describeTool(tool: ToolDef, environmentLine: string): string {
@@ -106,26 +109,30 @@ function buildMcpServer(
   return server;
 }
 
+function parseBody(text: string): McpBody {
+  try {
+    const value: unknown = JSON.parse(text);
+    return { kind: "parsed", value };
+  } catch {
+    return { kind: "unparsed", text };
+  }
+}
+
 // The SDK's 2025-era fallback runs every message of a batch at once, so one POST could fan out into
 // 100 signed calls, and two identical ones collide on mage's "Signature already used". The SDK has no
-// option to refuse batches, so this reads a clone under the SDK's own size limit; anything it cannot
-// read or parse is left for the SDK to answer.
-async function isBatch(request: Request): Promise<boolean> {
-  if (request.method.toUpperCase() !== "POST") return false;
-  try {
-    // Bun types `clone()` as undici's Request, which the SDK's helper does not take, so only its body is reused.
-    const probe = new Request(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: request.clone().body,
-    });
-    const read = await readRequestBody(probe, DEFAULT_MAX_REQUEST_BODY_SIZE);
-    if (read.tooLarge) return false;
-    const body: unknown = JSON.parse(read.text);
-    return Array.isArray(body);
-  } catch {
-    return false;
+// option to refuse batches, so the body is read here once and handed on parsed. A parsed body skips
+// the SDK's own size check, so its 413 is answered here; a body that is not JSON goes on unparsed
+// for the SDK to answer.
+async function readMcpBody(request: Request): Promise<McpBody> {
+  if (
+    request.method.toUpperCase() !== "POST" ||
+    !isJsonContentType(request.headers.get("content-type"))
+  ) {
+    return { kind: "untouched" };
   }
+  const read = await readRequestBody(request, DEFAULT_MAX_REQUEST_BODY_SIZE);
+  if (read.tooLarge) return { kind: "tooLarge" };
+  return parseBody(read.text);
 }
 
 export function createMcpEndpoint(
@@ -142,7 +149,13 @@ export function createMcpEndpoint(
         { status: UNAUTHORIZED_STATUS },
       );
     }
-    if (await isBatch(request)) {
+    const body = await readMcpBody(request);
+    if (body.kind === "tooLarge") {
+      return Response.json(BODY_TOO_LARGE_ANSWER, {
+        status: PAYLOAD_TOO_LARGE_STATUS,
+      });
+    }
+    if (body.kind === "parsed" && Array.isArray(body.value)) {
       return Response.json(
         { error: "batch_not_supported", message: BATCH_REFUSED_MESSAGE },
         { status: BAD_REQUEST_STATUS },
@@ -154,11 +167,26 @@ export function createMcpEndpoint(
       credentials: result.credentials,
     };
     // One handler per request, so the server factory closes over this request's credentials.
+    // listChanged notifications and the SDK's subscription cap would only apply within this one request if ever enabled.
     const handler = createMcpHandler(() => buildMcpServer(options, session), {
       onerror: (error) => {
         options.logger.error({ err: error }, "mcp handler error");
       },
     });
-    return await handler.fetch(request);
+    switch (body.kind) {
+      case "parsed":
+        return await handler.fetch(request, { parsedBody: body.value });
+      case "unparsed":
+        return await handler.fetch(
+          new Request(request.url, {
+            method: request.method,
+            headers: request.headers,
+            body: body.text,
+            signal: request.signal,
+          }),
+        );
+      case "untouched":
+        return await handler.fetch(request);
+    }
   };
 }
