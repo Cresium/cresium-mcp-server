@@ -39,7 +39,12 @@ const knownOperations = new Set(OPERATIONS.map(({ id }) => id));
 
 describe("names mentioned in agent-facing text", () => {
   it("includes the tools and prompts the server really has", () => {
-    for (const name of ["check_connection", "read_api", "search_docs"]) {
+    for (const name of [
+      "check_connection",
+      "diagnose_signature",
+      "read_api",
+      "search_docs",
+    ]) {
       expect(knownNames.has(name)).toBe(true);
     }
     expect(productionSources.length).toBeGreaterThan(10);
@@ -82,4 +87,13 @@ it("the signature prompt uses the same encoded list query as signedText", () => 
   expect(PROMPTS.find(({ name }) => name === "depurar_firma")?.text).toContain(
     example,
   );
+});
+
+it("the signature prompt sends the agent to diagnose_signature first and keeps the manual comparison", () => {
+  const text = PROMPTS.find(({ name }) => name === "depurar_firma")?.text ?? "";
+  expect(text).toContain("diagnose_signature");
+  expect(text.indexOf("diagnose_signature")).toBeLessThan(
+    text.indexOf("dryRun: true"),
+  );
+  expect(text).toContain("signedText");
 });

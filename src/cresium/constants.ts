@@ -10,6 +10,12 @@ export const MAGE_HEADERS = {
   signature: "x-signature",
 } as const;
 
+/** How far a timestamp may be from the server clock. mage enforces 60 s on requests; the webhook docs only suggest 5 min. */
+export const SIGNATURE_WINDOW_MS = {
+  request: 60_000,
+  webhook: 300_000,
+} as const;
+
 export const CLIENT_ERROR_STATUS = 400;
 export const SERVER_ERROR_STATUS = 500;
 

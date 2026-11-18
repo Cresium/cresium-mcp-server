@@ -36,17 +36,18 @@ export const PROMPTS: readonly PromptDef[] = [
     name: "depurar_firma",
     title: 'Depurar un "Invalid signature"',
     description:
-      "Compara el pedido que firma el código del usuario con el que firma este servidor y encuentra la diferencia.",
+      "Diagnostica la firma del código del usuario con diagnose_signature y, si hace falta, la compara con la que firma este servidor.",
     text: [
       'Mi código recibe "Invalid signature" de la API de Cresium. Ayudame a encontrar la diferencia:',
       "1. Corré check_connection para confirmar que mis credenciales funcionan desde acá.",
-      "2. Pedime la operación, los parámetros y el body que manda mi código, y cómo arma el texto que firma.",
-      "3. Ejecutá la misma operación con dryRun: true (read_api o write_api) y compará signedText con mi texto, parte por parte:",
+      "2. Pedime lo que usa mi código para firmar: kind (request o webhook), timestamp (x-timestamp), método, url, body crudo y la firma (x-signature).",
+      "3. Corré diagnose_signature con esos valores. Si encuentra la causa, mostrámela y corregí mi código.",
+      "4. Si no encuentra una causa, pedime también la operación y los parámetros, ejecutala con dryRun: true (read_api o write_api) y compará signedText con mi texto, parte por parte:",
       "   - timestamp: el mismo valor que el header x-timestamp, en ISO 8601 y reciente (la nota del dry run dice el margen);",
       "   - método en mayúsculas;",
       "   - path con query string, codificado exactamente como en signedText (las listas van como nombre%5B%5D=valor; por ejemplo types%5B%5D=DEPOSIT);",
       "   - body: el JSON compacto que se envía, con los tipos del schema (los números como números), o vacío si no hay body.",
-      "4. Mostrame la diferencia y corregí mi código.",
+      "5. Mostrame la diferencia y corregí mi código.",
     ].join("\n"),
   },
 ];

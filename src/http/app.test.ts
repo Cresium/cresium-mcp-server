@@ -434,6 +434,7 @@ describe("connection, dry run and tracing", () => {
     expect(hints).toEqual({
       check_connection: read,
       search_api: read,
+      diagnose_signature: read,
       read_api: read,
       search_docs: read,
       read_doc_page: read,

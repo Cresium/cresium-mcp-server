@@ -10,14 +10,18 @@ import type {
   SignedFields,
 } from "./types.ts";
 
-function toSignedText(fields: SignedFields): string {
+export function toSignedText(fields: SignedFields): string {
   return `${fields.timestamp}|${fields.method}|${fields.url}|${fields.body}`;
+}
+
+/** The only HMAC-SHA256 in the server: base64 of the digest of `text` under `secret`. */
+export function signText(secret: string | Uint8Array, text: string): string {
+  return createHmac("sha256", secret).update(text).digest("base64");
 }
 
 /** HMAC-SHA256 over `timestamp|METHOD|url|body`, base64. Same formula mage verifies in `verifyPartnerSignature`. */
 export function signRequest(secret: string, fields: SignedFields): string {
-  const signedText = toSignedText(fields);
-  return createHmac("sha256", secret).update(signedText).digest("base64");
+  return signText(secret, toSignedText(fields));
 }
 
 // mage signs "" for a request without body.
