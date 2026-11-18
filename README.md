@@ -128,6 +128,10 @@ Your agent's prompt menu offers two ready-made tasks:
 }
 ```
 
+### Size limits
+
+No tool returns more than 50,000 characters of text (about a third of the roughly 150,000 characters claude.ai accepts). A longer result, an error message included, is cut and ends with a note that says how many characters were dropped, that the text is incomplete (a cut JSON is no longer valid JSON) and how to ask for less: `pageSize`, filters and `fields` for `read_api`, a more specific search or one page for the docs. A full page of 100 transactions fits. The limit is a constant (`MAX_RESULT_CHARS`), not a setting.
+
 ### Errors
 
 The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.

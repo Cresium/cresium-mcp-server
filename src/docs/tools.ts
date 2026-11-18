@@ -5,6 +5,8 @@ import type { ToolDef } from "../tools/types.ts";
 import {
   BLOCK_SEPARATOR,
   DOCS_FEEDBACK_UNKNOWN_OUTCOME,
+  DOCS_PAGE_NARROWING_ADVICE,
+  DOCS_SEARCH_NARROWING_ADVICE,
   MINTLIFY_TOOLS,
 } from "./constants.ts";
 import { formatDocsSearch } from "./format.ts";
@@ -16,6 +18,7 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
     title: "Buscar en la documentación de Cresium",
     description:
       "Busca en la documentación de Cresium (docs.cresium.com): guías, autenticación, webhooks, sandbox y referencia de la API. Devuelve los primeros resultados, recortados, con el path de cada página; para una página completa usá read_doc_page.",
+    narrowingAdvice: DOCS_SEARCH_NARROWING_ADVICE,
     input: z.object({
       query: z
         .string()
@@ -39,6 +42,7 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
     title: "Leer una página de la documentación",
     description:
       'Lee una página completa de la documentación de Cresium en Markdown. Recibe el path que devuelve search_docs, por ejemplo "sandbox" o "api-reference/introduction".',
+    narrowingAdvice: DOCS_PAGE_NARROWING_ADVICE,
     input: z.object({
       path: z
         .string()

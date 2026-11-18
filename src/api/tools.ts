@@ -19,6 +19,7 @@ import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
+  READ_API_NARROWING_ADVICE,
   SEARCH_LIMIT,
   UNMATCHED_FIELDS_NOTE,
 } from "./constants.ts";
@@ -228,6 +229,7 @@ const readApiTool = defineTool({
   name: CALL_TOOLS.read.name,
   title: CALL_TOOLS.read.title,
   description: CALL_TOOLS.read.description,
+  narrowingAdvice: READ_API_NARROWING_ADVICE,
   input: readInput,
   ...CALL_TOOLS.read.effect,
   run: async (input, ctx) =>

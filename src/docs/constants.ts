@@ -16,3 +16,11 @@ export const DOCS_SEARCH_RESULT_MAX_CHARS = 1_500;
 export const DOCS_SEARCH_PAGE_LINE = /^Page: *(.+)$/m;
 
 export const BLOCK_SEPARATOR = "\n\n";
+
+/** How to receive less from read_doc_page once a page was cut; the runner appends it to the cut note. */
+export const DOCS_PAGE_NARROWING_ADVICE =
+  "Para el resto buscá con search_docs la sección que necesitás: devuelve fragmentos y el path de cada página.";
+
+/** How to receive less from search_docs once its results were cut. */
+export const DOCS_SEARCH_NARROWING_ADVICE =
+  "Buscá con palabras más específicas o leé una página puntual con read_doc_page.";

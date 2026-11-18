@@ -9,6 +9,7 @@ import {
 
 import type { Client } from "@modelcontextprotocol/client";
 
+import { MAX_RESULT_CHARS } from "../src/tools/constants.ts";
 import { callTool } from "./support/call-tool.ts";
 import { startFakeCresium } from "./support/fake-cresium.ts";
 import { startApp } from "./support/start-app.ts";
@@ -123,5 +124,23 @@ describe("read_api fields", () => {
     );
     expect("fields" in (shapes["read_api"] ?? {})).toBe(true);
     expect("fields" in (shapes["write_api"] ?? {})).toBe(false);
+  });
+});
+
+describe("the result limit", () => {
+  it("cuts a listing that is too long and points at pageSize, filters and fields", async () => {
+    fake.reply({ status: 200, body: transactionPage(150) });
+    const result = await callTool(client, "read_api", SEARCH);
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("Resultado cortado");
+    expect(result.text).toContain("pageSize");
+    expect(result.text).toContain("fields");
+    expect(result.text.length).toBeLessThan(MAX_RESULT_CHARS + 500);
+  });
+
+  it("does not cut a full page of 100 transactions", async () => {
+    fake.reply({ status: 200, body: transactionPage(100) });
+    const result = await callTool(client, "read_api", SEARCH);
+    expect(result.text).not.toContain("Resultado cortado");
   });
 });
