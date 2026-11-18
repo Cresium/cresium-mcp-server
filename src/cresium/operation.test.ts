@@ -61,6 +61,17 @@ describe("callOperation", () => {
     expect(records.map(({ status }) => status)).toEqual(["failed"]);
   });
 
+  it("rethrows a cancelled call unchanged, so the tool runner can say it was cancelled", async () => {
+    const cancelled = { ...context, signal: AbortSignal.abort() };
+    const error: unknown = await callOperation(
+      cancelled,
+      BALANCE,
+      NO_PARAMS,
+    ).catch((thrown: unknown) => thrown);
+    expect(error).not.toBeInstanceOf(UserFacingError);
+    expect(error).toHaveProperty("name", "AbortError");
+  });
+
   it("sends nothing and reports nothing for a request mage would reject", async () => {
     const error = await failure(
       callOperation(context, PREVIEW, { ...NO_PARAMS, body: { toId: 5 } }),

@@ -420,6 +420,54 @@ describe("API tools", () => {
   });
 });
 
+describe("an unreachable Cresium API", () => {
+  let unreachable: RunningApp;
+  let client: Client;
+
+  beforeAll(async () => {
+    const closed = Bun.serve({ port: 0, fetch: () => new Response() });
+    const refusing = `http://localhost:${closed.port}`;
+    await closed.stop(true);
+    unreachable = await startApp({
+      sandbox: refusing,
+      production: refusing,
+      docs: "http://localhost:9",
+    });
+    client = await unreachable.connect("sandbox", HEADERS);
+  });
+
+  afterAll(async () => {
+    await client.close();
+    unreachable.stop();
+  });
+
+  const NO_ANSWER =
+    "La API de Cresium no respondió: no se pudo conectar o se cortó la conexión. Ambiente conectado: SANDBOX (pruebas, sin plata real).";
+
+  it("tells the agent on a read that the API did not answer, and logs why", async () => {
+    unreachable.logLines.length = 0;
+    const result = await callTool(client, "read_api", {
+      operation: "GET /v3/balance/wallets",
+    });
+    expect(result).toEqual({ isError: true, text: NO_ANSWER });
+    const failures = unreachable.logLines
+      .map((line) => JSON.parse(line) as { level: number; err?: unknown })
+      .filter(({ level, err }) => level >= 40 && err != null);
+    expect(failures).toHaveLength(1);
+  });
+
+  it("tells the agent on a write that Cresium may have applied it", async () => {
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/deposit-address/cvu",
+      body: { value: "cliente.03" },
+    });
+    expect(result).toEqual({
+      isError: true,
+      text: `${NO_ANSWER} ${API_WRITE_UNKNOWN_OUTCOME}`,
+    });
+  });
+});
+
 describe("connection, dry run and tracing", () => {
   let client: Client;
 

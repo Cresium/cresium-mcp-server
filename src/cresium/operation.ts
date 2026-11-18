@@ -5,6 +5,7 @@ import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { callCresium, previewRequest } from "./client.ts";
 import {
+  API_UNREACHABLE,
   AUTH_PROBLEMS,
   CLIENT_ERROR_STATUS,
   DRY_RUN_NOTE,
@@ -35,6 +36,13 @@ async function send(
     );
     status = response.status;
     return response;
+  } catch (error) {
+    if (signal.aborted) throw error;
+    // A reset can arrive after mage processed the request.
+    throw new UserFacingError(
+      `${API_UNREACHABLE} ${connectedTo(session.environment)}`,
+      { outcomeUnknown: true, cause: error },
+    );
   } finally {
     onCall({
       operation: operation.id,

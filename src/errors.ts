@@ -8,9 +8,16 @@ export class UserFacingError extends Error {
 
   constructor(
     message: string,
-    { outcomeUnknown = false }: { readonly outcomeUnknown?: boolean } = {},
+    {
+      outcomeUnknown = false,
+      cause,
+    }: {
+      readonly outcomeUnknown?: boolean;
+      /** The failure behind the message, logged by the tool runner. */
+      readonly cause?: unknown;
+    } = {},
   ) {
-    super(message);
+    super(message, cause == null ? undefined : { cause });
     this.outcomeUnknown = outcomeUnknown;
   }
 }
