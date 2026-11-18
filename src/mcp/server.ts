@@ -1,3 +1,4 @@
+import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import {
   createMcpHandler,
   DEFAULT_MAX_REQUEST_BODY_SIZE,
@@ -32,6 +33,19 @@ function describeTool(tool: ToolDef, environmentLine: string): string {
     : tool.description;
 }
 
+// Reads are idempotent and destructive-free by construction; only a write tool declares its own.
+function hintsOf(tool: ToolDef): ToolAnnotations {
+  const behavior =
+    tool.access === "read"
+      ? { destructiveHint: false, idempotentHint: true }
+      : { destructiveHint: tool.destructive, idempotentHint: tool.idempotent };
+  return {
+    readOnlyHint: tool.access === "read",
+    ...behavior,
+    openWorldHint: true,
+  };
+}
+
 function registerPrompts(server: McpServer): void {
   for (const { name, title, description, text } of PROMPTS) {
     server.registerPrompt(name, { title, description }, () => ({
@@ -62,12 +76,10 @@ function buildMcpServer(
     server.registerTool(
       tool.name,
       {
+        title: tool.title,
         description: describeTool(tool, environmentLine),
         inputSchema: tool.input,
-        annotations: {
-          readOnlyHint: tool.access === "read",
-          openWorldHint: true,
-        },
+        annotations: hintsOf(tool),
       },
       (input, ctx) =>
         runTool(

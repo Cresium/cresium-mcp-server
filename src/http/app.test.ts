@@ -508,6 +508,54 @@ describe("connection, dry run and tracing", () => {
     expect(descriptions["read_api"]).not.toContain("PRODUCCIÓN");
   });
 
+  it("declares a title and every behavior hint on each tool", async () => {
+    const { tools } = await client.listTools();
+    const hints = Object.fromEntries(
+      tools.map(({ name, title, annotations }) => [
+        name,
+        {
+          titled: (title ?? "").length > 0,
+          readOnly: annotations?.readOnlyHint,
+          destructive: annotations?.destructiveHint,
+          idempotent: annotations?.idempotentHint,
+        },
+      ]),
+    );
+    const read = {
+      titled: true,
+      readOnly: true,
+      destructive: false,
+      idempotent: true,
+    };
+    expect(hints).toEqual({
+      check_connection: read,
+      search_api: read,
+      read_api: read,
+      search_docs: read,
+      read_doc_page: read,
+      write_api: {
+        titled: true,
+        readOnly: false,
+        destructive: true,
+        idempotent: false,
+      },
+      send_docs_feedback: {
+        titled: true,
+        readOnly: false,
+        destructive: false,
+        idempotent: false,
+      },
+    });
+  });
+
+  it("names itself with a title and its website", () => {
+    expect(client.getServerVersion()).toMatchObject({
+      name: "cresium-mcp-server",
+      title: "Cresium",
+      websiteUrl: "https://docs.cresium.com",
+    });
+  });
+
   it("offers the integration prompts", async () => {
     const { prompts } = await client.listPrompts();
     expect(prompts.map((prompt) => prompt.name).sort()).toEqual([

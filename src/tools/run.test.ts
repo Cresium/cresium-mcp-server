@@ -37,6 +37,7 @@ function call(
 
 const echo = defineTool({
   name: "test_echo",
+  title: "Prueba",
   description: "echo",
   input: z.object({ text: z.string() }),
   access: "read",
@@ -51,6 +52,7 @@ function errorText(result: CallToolResult): string {
 function failing(error: Error): ToolDef {
   return defineTool({
     name: "test_fail",
+    title: "Prueba",
     description: "fails",
     input: z.object({}),
     access: "read",
@@ -113,6 +115,7 @@ describe("runTool", () => {
   it("times out a tool that ignores its abort signal", async () => {
     const slow = defineTool({
       name: "test_slow",
+      title: "Prueba",
       description: "never ends",
       input: z.object({}),
       access: "read",
@@ -134,6 +137,7 @@ describe("runTool", () => {
     let seen: AbortSignal | undefined;
     const watcher = defineTool({
       name: "test_watch",
+      title: "Prueba",
       description: "waits for abort",
       input: z.object({}),
       access: "read",
@@ -149,9 +153,12 @@ describe("runTool", () => {
   it("tells the agent a timed-out write may have happened", async () => {
     const slowWrite = defineTool({
       name: "test_write",
+      title: "Prueba",
       description: "never ends",
       input: z.object({}),
       access: "write",
+      destructive: false,
+      idempotent: false,
       unknownOutcomeAdvice: WRITE_ADVICE,
       run: () => new Promise<string>(() => undefined),
     });
@@ -168,9 +175,12 @@ describe("runTool", () => {
       call(
         defineTool({
           name: "test_write",
+          title: "Prueba",
           description: "connection drops",
           input: z.object({}),
           access: "write",
+          destructive: false,
+          idempotent: false,
           unknownOutcomeAdvice: WRITE_ADVICE,
           run: () => Promise.reject(new TypeError("fetch failed")),
         }),
@@ -185,9 +195,12 @@ describe("runTool", () => {
     const failingWrite = (error: UserFacingError): ToolDef =>
       defineTool({
         name: "test_write",
+        title: "Prueba",
         description: "fails",
         input: z.object({}),
         access: "write",
+        destructive: false,
+        idempotent: false,
         unknownOutcomeAdvice: WRITE_ADVICE,
         run: () => Promise.reject(error),
       });
@@ -210,6 +223,7 @@ describe("runTool", () => {
     let ran = false;
     const guarded = defineTool({
       name: "test_guarded",
+      title: "Prueba",
       description: "needs a verified partner",
       input: z.object({}),
       access: "read",
@@ -269,9 +283,12 @@ it.each(["read", "write"] as const)(
     const controller = new AbortController();
     const tool = defineTool({
       name: "test_cancel",
+      title: "Prueba",
       description: "cancel",
       input: z.object({}),
       access,
+      destructive: false,
+      idempotent: false,
       unknownOutcomeAdvice: WRITE_ADVICE,
       run: () => {
         started.resolve(undefined);
@@ -307,9 +324,12 @@ it("does not start a write after cancellation during the connection check", asyn
   let runs = 0;
   const tool = defineTool({
     name: "test_guarded_write",
+    title: "Prueba",
     description: "cancel before sending",
     input: z.object({}),
     access: "write",
+    destructive: false,
+    idempotent: false,
     unknownOutcomeAdvice: WRITE_ADVICE,
     requiresVerifiedPartner: true,
     run: () => {
@@ -343,9 +363,12 @@ it("never starts a tool for an already cancelled request", async () => {
   let runs = 0;
   const tool = defineTool({
     name: "test_cancelled",
+    title: "Prueba",
     description: "cancelled",
     input: z.object({}),
     access: "write",
+    destructive: false,
+    idempotent: false,
     unknownOutcomeAdvice: WRITE_ADVICE,
     run: () => {
       runs += 1;

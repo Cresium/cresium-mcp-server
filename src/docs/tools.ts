@@ -13,6 +13,7 @@ import { callMintlify, fetchDocPage } from "./mintlify.ts";
 export function createDocsTools(docsUrl: string): readonly ToolDef[] {
   const searchDocs = defineTool({
     name: "search_docs",
+    title: "Buscar en la documentación de Cresium",
     description:
       "Busca en la documentación de Cresium (docs.cresium.com): guías, autenticación, webhooks, sandbox y referencia de la API. Devuelve los primeros resultados, recortados, con el path de cada página; para una página completa usá read_doc_page.",
     input: z.object({
@@ -35,6 +36,7 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
 
   const readDocPage = defineTool({
     name: "read_doc_page",
+    title: "Leer una página de la documentación",
     description:
       'Lee una página completa de la documentación de Cresium en Markdown. Recibe el path que devuelve search_docs, por ejemplo "sandbox" o "api-reference/introduction".',
     input: z.object({
@@ -50,6 +52,7 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
 
   const sendDocsFeedback = defineTool({
     name: "send_docs_feedback",
+    title: "Reportar un problema en la documentación",
     description:
       "Reporta un problema en una página de la documentación de Cresium (incorrecta, desactualizada, confusa o con un ejemplo roto) para que el equipo la corrija.",
     input: z.object({
@@ -57,6 +60,8 @@ export function createDocsTools(docsUrl: string): readonly ToolDef[] {
       feedback: z.string().min(1).describe("Qué está mal o qué falta."),
     }),
     access: "write",
+    destructive: false,
+    idempotent: false,
     unknownOutcomeAdvice: DOCS_FEEDBACK_UNKNOWN_OUTCOME,
     requiresVerifiedPartner: true,
     run: async ({ path, feedback }, ctx) => {
