@@ -15,6 +15,7 @@ const OPERATION_ID = /\b(?:GET|POST|PUT|PATCH|DELETE) \/v3\/[\w/{}-]*[\w/}]/g;
 // Snake_case words in the code that name neither a tool nor a prompt: JSON error codes of the HTTP endpoint.
 const NOT_TOOL_NAMES = [
   "missing_credentials",
+  "rate_limited",
   "batch_not_supported",
   "internal_error",
 ];

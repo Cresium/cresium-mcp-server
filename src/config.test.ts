@@ -24,6 +24,33 @@ describe("loadConfig", () => {
     expect(() => loadConfig(rest)).toThrow(/CRESIUM_PRODUCTION_API_URL/);
   });
 
+  it("limits each IP to 300 requests a minute and trusts no proxy unless told", () => {
+    const config = loadConfig(VALID);
+    expect(config.rateLimitPerMinute).toBe(300);
+    expect(config.trustedProxyHops).toBe(0);
+  });
+
+  it("reads the limit and the proxy hops", () => {
+    const config = loadConfig({
+      ...VALID,
+      RATE_LIMIT_PER_MINUTE: "60",
+      TRUSTED_PROXY_HOPS: "1",
+    });
+    expect(config.rateLimitPerMinute).toBe(60);
+    expect(config.trustedProxyHops).toBe(1);
+  });
+
+  it.each([
+    ["RATE_LIMIT_PER_MINUTE", "0"],
+    ["RATE_LIMIT_PER_MINUTE", "1.5"],
+    ["TRUSTED_PROXY_HOPS", "-1"],
+    ["TRUSTED_PROXY_HOPS", "true"],
+  ])("refuses %s=%s", (name, value) => {
+    expect(() => loadConfig({ ...VALID, [name]: value })).toThrow(
+      new RegExp(name),
+    );
+  });
+
   it("refuses plain http outside localhost, so credentials never travel unencrypted", () => {
     expect(() =>
       loadConfig({

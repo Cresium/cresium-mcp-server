@@ -9,5 +9,9 @@ export interface Config {
   readonly apiUrls: Readonly<Record<Environment, string>>;
   readonly docsUrl: string;
   readonly toolTimeoutMs: number;
+  /** Requests one client IP may make to the MCP routes each minute. */
+  readonly rateLimitPerMinute: number;
+  /** Proxies in front of this server whose X-Forwarded-For entry is believed; 0 uses the socket address. */
+  readonly trustedProxyHops: number;
   readonly logLevel: LogLevel;
 }
