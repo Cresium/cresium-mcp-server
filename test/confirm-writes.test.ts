@@ -210,7 +210,50 @@ describe("a production write put to the person", () => {
       body: { value: "a".repeat(20_000) },
     });
     expect(asked[0]?.length).toBeLessThan(2500);
-    expect(asked[0]).toContain("de 20012 caracteres");
+    expect(asked[0]).toContain("de 20000 caracteres");
+    await client.close();
+  });
+
+  it("shows the amount and the destination after a long description, and sends the full body once accepted", async () => {
+    const { client, asked } = await answering("accept");
+    const body = {
+      description: "Pago de honorarios mensuales según contrato. ".repeat(40),
+      toId: 777001,
+      amount: "9999999",
+      currencyCode: "ARS",
+    };
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/transaction/preview",
+      body,
+    });
+    expect(result.isError).toBe(false);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('"toId":777001');
+    expect(asked[0]).toContain('"amount":"9999999"');
+    expect(asked[0]).not.toContain(body.description);
+    expect(upstream.received).toHaveLength(1);
+    expect(upstream.received[0]?.body).toBe(JSON.stringify(body));
+    await client.close();
+  });
+
+  it("refuses, without asking or sending, a call too large to show", async () => {
+    const { client, asked } = await answering("accept");
+    const invoices = Array.from({ length: 5_000 }, (_, index) => ({
+      amount: index + 1,
+      payerNationalIdentifier: "20123456789",
+      payerName: "Ana",
+      status: "PENDING",
+    }));
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/invoice/",
+      body: invoices,
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("demasiado grande");
+    expect(result.text).toContain("no se envió nada");
+    expect(result.text).not.toContain("pudo");
+    expect(asked).toHaveLength(0);
+    expect(upstream.received).toHaveLength(0);
     await client.close();
   });
 

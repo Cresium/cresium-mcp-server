@@ -110,8 +110,14 @@ export const UNMATCHED_FIELDS_NOTE =
 export const READ_API_NARROWING_ADVICE =
   "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";
 
-/** The most characters of the URL or the body that a confirmation shows; a longer one is cut and its size said. */
-export const CONFIRMATION_SHOWN_CHARS = 1500;
+/** The most characters of one text value a confirmation shows; a longer one is cut alone and its size said. */
+export const CONFIRMATION_SHOWN_CHARS = 500;
+
+/** Past this a person accepts without reading it all, so the call is refused instead of asked. */
+export const CONFIRMATION_MAX_CHARS = 10_000;
+
+export const CONFIRMATION_TOO_LARGE =
+  "Esta escritura es demasiado grande para mostrársela completa al usuario y pedirle confirmación en esta conexión, así que no se envió nada a Cresium. Dividila en pedidos más chicos.";
 
 /** Bounds diagnose_signature's inputs: it hashes them about 20 times per call, with credentials nobody verified. */
 export const DIAGNOSE_MAX_BODY_LENGTH = 65_536;
