@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { readTextWithin } from "../body.ts";
+import { fetchUncompressed, readTextWithin } from "../body.ts";
 import {
   BYTES_PER_MIB,
   MAX_UPSTREAM_BODY_BYTES,
@@ -79,7 +79,7 @@ export async function callCresium(
     ? { "content-type": "application/json" }
     : {};
   const hangUp = new AbortController();
-  const response = await fetch(`${baseUrl}${url}`, {
+  const response = await fetchUncompressed(`${baseUrl}${url}`, {
     method,
     headers: {
       [MAGE_HEADERS.apiKey]: credentials.apiKey,

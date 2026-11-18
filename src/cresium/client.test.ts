@@ -2,6 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 
 import { startEndlessUpstream } from "../../test/support/endless-upstream.ts";
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
+import { startGzipUpstream } from "../../test/support/gzip-upstream.ts";
+import { bytesHandedToReaders } from "../../test/support/reader-bytes.ts";
 import { MAX_UPSTREAM_BODY_BYTES, USER_AGENT } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
 import { callCresium, previewRequest, signRequest } from "./client.ts";
@@ -46,6 +48,7 @@ describe("callCresium", () => {
     expect(request?.headers.get("x-api-key")).toBe("key-1234");
     expect(request?.headers.get("x-company-id")).toBe("44");
     expect(request?.headers.get("content-type")).toBeNull();
+    expect(request?.headers.get("accept-encoding")).toBe("identity");
     expect(request?.body).toBe("");
   });
 
@@ -136,6 +139,51 @@ describe("callCresium with an answer that never ends", () => {
       body: { value: "a.b" },
     });
     expect(error.message).toContain("La escritura se envió");
+    expect(error.outcomeUnknown).toBe(true);
+  });
+});
+
+describe("callCresium with a compressed answer", () => {
+  const honoring = startGzipUpstream({ honorsAcceptEncoding: true });
+  const ignoring = startGzipUpstream({ honorsAcceptEncoding: false });
+  afterAll(async () => {
+    await honoring.stop();
+    await ignoring.stop();
+  });
+
+  it("asks for an uncompressed answer, so a gzip body never inflates in memory", async () => {
+    const target = { baseUrl: honoring.baseUrl, credentials };
+    let body: unknown;
+    const handed = await bytesHandedToReaders(async () => {
+      ({ body } = await callCresium(
+        target,
+        { method: "GET", url: "/v3/transaction/" },
+        signal,
+      ));
+    });
+    expect(honoring.acceptEncodings).toEqual(["identity"]);
+    expect(body).toEqual(JSON.parse(honoring.smallAnswer));
+    expect(handed).toBe(honoring.smallAnswer.length);
+  });
+
+  it("refuses an answer compressed anyway without inflating it", async () => {
+    const target = { baseUrl: ignoring.baseUrl, credentials };
+    let error: unknown;
+    const handed = await bytesHandedToReaders(async () => {
+      error = await callCresium(
+        target,
+        {
+          method: "POST",
+          url: "/v3/deposit-address/cvu",
+          body: { value: "a" },
+        },
+        signal,
+      ).catch((thrown: unknown) => thrown);
+    });
+    expect(handed).toBeLessThanOrEqual(ignoring.compressedBytes);
+    expect(error).toBeInstanceOf(UserFacingError);
+    if (!(error instanceof UserFacingError)) return;
+    expect(error.message).toContain("comprimid");
     expect(error.outcomeUnknown).toBe(true);
   });
 });
