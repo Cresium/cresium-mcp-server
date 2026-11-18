@@ -18,3 +18,10 @@ export interface PromptDef {
   readonly description: string;
   readonly text: string;
 }
+
+/** A POST body as the endpoint read it: parsed JSON, text the SDK must parse and answer, or not read at all. */
+export type McpBody =
+  | { readonly kind: "parsed"; readonly value: unknown }
+  | { readonly kind: "unparsed"; readonly text: string }
+  | { readonly kind: "tooLarge" }
+  | { readonly kind: "untouched" };

@@ -132,6 +132,39 @@ describe("HTTP", () => {
       keepalive: false,
     });
     expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: `Payload Too Large: Request body must not exceed ${DEFAULT_MAX_REQUEST_BODY_SIZE} bytes`,
+      },
+      id: null,
+    });
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 400 - answers a malformed JSON body with the SDK's own parse error", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: LEGACY_POST_HEADERS,
+      body: '{"jsonrpc": "2.0",',
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      error: { code: -32700, message: "Parse error: Invalid JSON" },
+      id: null,
+    });
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 415 - leaves a body that is not JSON to the SDK", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: { ...LEGACY_POST_HEADERS, "content-type": "text/plain" },
+      body: "[1, 2]",
+    });
+    expect(response.status).toBe(415);
     expect(production.received).toHaveLength(0);
   });
 
