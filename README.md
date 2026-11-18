@@ -98,16 +98,15 @@ Tested only with the MCP SDK's own client (`@modelcontextprotocol/client` 2.4.0,
 
 ## Tools
 
-| Tool                 | Does                                                                                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `check_connection`   | Proves your credentials work and says which environment you are on. On an authentication failure it names the header to fix.                               |
-| `search_api`         | Finds V3 operations by keyword, in Spanish or English. With no query it lists every operation with its summary.                                            |
-| `diagnose_signature` | Says whether the signature your code computed is valid for your secret and, if not, which common mistake produces it. Read-only, makes no call to Cresium. |
-| `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only.                                                        |
-| `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.                                                               |
-| `search_docs`        | Searches docs.cresium.com and returns the first results, shortened.                                                                                        |
-| `read_doc_page`      | Reads one docs page as Markdown.                                                                                                                           |
-| `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                                                                                  |
+| Tool                 | Does                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `check_connection`   | Proves your credentials work and says which environment you are on. On an authentication failure it names the header to fix. |
+| `search_api`         | Finds V3 operations by keyword, in Spanish or English. With no query it lists every operation with its summary.              |
+| `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only.                          |
+| `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.                                 |
+| `search_docs`        | Searches docs.cresium.com and returns the first results, shortened.                                                          |
+| `read_doc_page`      | Reads one docs page as Markdown.                                                                                             |
+| `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                                                    |
 
 The docs tools also need valid credentials: the server checks them against Cresium before it forwards the call.
 
@@ -125,32 +124,6 @@ Your agent's prompt menu offers two ready-made tasks:
 | ------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `integrar_cvus_dedicados` | Runs the dedicated CVU flow in sandbox, then writes the signing client and the webhook in your project. |
 | `depurar_firma`           | Compares the request your code signs with the one this server signs and shows the difference.           |
-
-### Diagnosing "Invalid signature"
-
-`diagnose_signature` takes what your code signed (`kind` `request` or `webhook`, `timestamp`, `method`, `url`, the raw `body`, and the `signature` it computed), recomputes the signature with the secret of your connection and compares them in constant time. If they differ it tries a fixed table of known mistakes (hex instead of base64, lowercase method, URL without its query, unencoded `[]`, pretty-printed body, `{}` for an empty body, missing final `|`, decoded secret, API key as secret, and more) and names the first one that reproduces your signature, with the fix. It also warns about a timestamp that is not ISO 8601 or is outside the window (60 seconds for requests, 5 minutes for webhooks). It never returns the secret, the API key or the correct signature, and it needs no valid credentials because it calls nothing. `body` takes up to 65,536 characters and `url` up to 4,096: longer inputs are refused before any signing work, since anyone can call it. The `depurar_firma` prompt uses it first. There is no switch.
-
-```json
-{
-  "kind": "request",
-  "timestamp": "2026-04-21T15:42:03.000Z",
-  "method": "GET",
-  "url": "/v3/balance/wallets",
-  "body": "",
-  "signature": "<hex digest your code produced>"
-}
-```
-
-```json
-{
-  "valid": false,
-  "cause": {
-    "id": "hex-digest",
-    "explanation": "La firma está en hexadecimal. Cresium espera el digest HMAC-SHA256 en Base64: ..."
-  },
-  "warnings": []
-}
-```
 
 ### Lean results
 
@@ -181,7 +154,7 @@ agent ──POST /sandbox── headers: x-api-key · x-api-secret · x-company-
 cresium-mcp  (src/http/app.ts)
   ├─ partner/credentials.ts   reads the 3 headers; 401 if one is missing
   ├─ mcp/server.ts            one MCP server per request, bound to the environment
-  ├─ api/tools.ts             check_connection · search_api · diagnose_signature · read_api · write_api over api/operations.json
+  ├─ api/tools.ts             check_connection · search_api · read_api · write_api over api/operations.json
   │    └─ cresium/client.ts   signs HMAC-SHA256(secret, "timestamp|METHOD|url|body") and calls V3
   └─ docs/tools.ts            passes through to docs.cresium.com/mcp (Mintlify)
 ```

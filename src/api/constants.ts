@@ -122,7 +122,3 @@ export const CONFIRMATION_TOO_LARGE =
 /** Without a body, what the write changes lives in Cresium, for example the transaction an id names. */
 export const CONFIRMATION_NO_BODY_NOTE =
   "Este pedido no lleva body: los datos sobre los que actúa (por ejemplo, el monto y el destino de esa transacción) no se muestran acá. Revisalos antes de aceptar.";
-
-/** Bounds diagnose_signature's inputs: it hashes them about 20 times per call, with credentials nobody verified. */
-export const DIAGNOSE_MAX_BODY_LENGTH = 65_536;
-export const DIAGNOSE_MAX_URL_LENGTH = 4_096;

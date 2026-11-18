@@ -59,7 +59,6 @@ for (const route of READ_ONLY_ROUTES) {
       const names = (await client.listTools()).tools.map(({ name }) => name);
       expect(names.sort()).toEqual([
         "check_connection",
-        "diagnose_signature",
         "read_api",
         "read_doc_page",
         "search_api",

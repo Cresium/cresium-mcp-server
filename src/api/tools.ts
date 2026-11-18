@@ -1,8 +1,6 @@
 import * as z from "zod";
 
-import { HTTP_METHODS } from "../cresium/constants.ts";
 import { previewOperation } from "../cresium/operation.ts";
-import { diagnoseSignature } from "../cresium/signature.ts";
 import type { Operation } from "../cresium/types.ts";
 import { UserFacingError } from "../errors.ts";
 import { maskApiKey } from "../partner/credentials.ts";
@@ -19,8 +17,6 @@ import { confirmationFor } from "./confirmation.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
-  DIAGNOSE_MAX_BODY_LENGTH,
-  DIAGNOSE_MAX_URL_LENGTH,
   READ_API_NARROWING_ADVICE,
   SCHEMA_HINT,
   SEARCH_LIMIT,
@@ -159,52 +155,6 @@ const searchApiTool = (guidance: WriteGuidance) =>
     run: ({ query }) => Promise.resolve(searchText(query)),
   });
 
-const diagnoseSignatureTool = defineTool({
-  name: "diagnose_signature",
-  title: "Diagnosticar una firma inválida",
-  description:
-    'Diagnostica un "Invalid signature": dice si la firma del código del partner es válida para su secret y, si no, qué error común la produce. No llama a Cresium.',
-  input: z.object({
-    kind: z
-      .enum(["request", "webhook"])
-      .describe("Pedido a la API o webhook recibido."),
-    timestamp: z.string().describe("x-timestamp."),
-    method: z
-      .enum(HTTP_METHODS)
-      .optional()
-      .describe("Obligatorio en request; un webhook es POST."),
-    url: z
-      .string()
-      .max(DIAGNOSE_MAX_URL_LENGTH)
-      .describe("request: path con query. webhook: URL completa registrada."),
-    body: z
-      .string()
-      .max(DIAGNOSE_MAX_BODY_LENGTH)
-      .default("")
-      .describe("Body crudo; vacío si no hay."),
-    signature: z
-      .string()
-      .describe("x-signature que calculó el código del partner."),
-  }),
-  access: "read",
-  run: ({ method, ...check }, ctx) => {
-    if (check.kind === "request" && !method) {
-      throw new UserFacingError(
-        "Un request necesita method (GET, POST, PUT, PATCH o DELETE).",
-      );
-    }
-    return Promise.resolve(
-      JSON.stringify(
-        diagnoseSignature(
-          ctx.session,
-          { ...check, method: method ?? "POST" },
-          new Date(),
-        ),
-      ),
-    );
-  },
-});
-
 /** The operation `id`, refused with `wrongAccess` after its id when it is not a `access` operation. */
 function operationFor(
   id: string,
@@ -276,7 +226,6 @@ export function createApiTools(mode: AccessMode): readonly ToolDef[] {
   return [
     checkConnectionTool,
     searchApiTool(guidance),
-    diagnoseSignatureTool,
     readApiTool(guidance),
     writeApiTool,
   ];
