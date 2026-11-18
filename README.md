@@ -106,6 +106,10 @@ cresium-mcp  (src/http/app.ts)
 - The logger censors the `x-api-key` and `x-api-secret` headers and any `apiKey` or `secret` field, in case new code ever logs them.
 - `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. The API's deploy workflow in `mage` regenerates it and pushes it to `main` after each production deploy. Run `bun run spec:update` by hand to refresh it sooner.
 
+### Search goldens
+
+`test/search-goldens.ts` lists the phrases partners use, in Spanish and English, and the operation `search_api` must return for each in its top 3 (or nothing, for words the catalogue does not cover, like `webhook`). `test/search-goldens.test.ts` reports every phrase that fails and what search returned instead. Because the catalogue is regenerated after each production deploy, a failing golden after `bun run spec:update` means partners' words no longer find the right operation: add a synonym in `src/api/constants.ts` or fix the golden if the API really changed. There is no switch: it is a test.
+
 ## Develop
 
 ```bash
