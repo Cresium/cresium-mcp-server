@@ -31,4 +31,6 @@ export const CONNECTION_CHECK_OPERATION = "GET /v3/balance/wallets";
 export const API_WRITE_UNKNOWN_OUTCOME =
   "Cresium pudo haberla aplicado igual: verificá el estado con read_api (por ejemplo GET /v3/transaction/search) antes de reintentar.";
 
+export const SCHEMA_HINT = "Revisá el schema con search_api.";
+
 export const CONNECTION_CACHE_TTL_MS = 10 * 60_000;

@@ -144,7 +144,8 @@ function toBody(operation: Operation, body: unknown): unknown {
   const prepared = structuredClone(body);
   if (!validate(prepared)) {
     throw new UserFacingError(
-      `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}. Revisá el schema con search_api.`,
+      `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}.`,
+      { schemaViolation: true },
     );
   }
   return prepared;

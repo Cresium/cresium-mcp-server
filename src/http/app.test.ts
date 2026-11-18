@@ -360,6 +360,21 @@ describe("API tools", () => {
     expect(sandbox.received).toHaveLength(0);
   });
 
+  it.each([false, true])(
+    "points at search_api when a body breaks the schema (dry run: %p)",
+    async (dryRun) => {
+      const result = await callTool(client, "write_api", {
+        operation: "POST /v3/transaction/preview",
+        body: { toId: 5 },
+        dryRun,
+      });
+      expect(result).toEqual({
+        isError: true,
+        text: "Body inválido para POST /v3/transaction/preview: data must have required property 'amount'. Revisá el schema con search_api.",
+      });
+    },
+  );
+
   it("rejects '..' as a path parameter", async () => {
     const result = await callTool(client, "read_api", {
       operation: "GET /v3/transaction/{id}",

@@ -144,6 +144,7 @@ export function createMcpEndpoint(
       credentials: result.credentials,
     };
     // One handler per request, so the server factory closes over this request's credentials.
+    // listChanged notifications and the SDK's subscription cap would only apply within this one request if ever enabled.
     const handler = createMcpHandler(() => buildMcpServer(options, session), {
       onerror: (error) => {
         options.logger.error({ err: error }, "mcp handler error");

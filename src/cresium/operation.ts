@@ -21,6 +21,11 @@ import type {
   OperationCall,
 } from "./types.ts";
 
+/** Whether the operation changes data: everything but GET. */
+export function isWrite(operation: Operation): boolean {
+  return operation.method !== "GET";
+}
+
 async function send(
   { session, signal, onCall }: CallContext,
   operation: Operation,
@@ -72,7 +77,7 @@ function assertSucceeded(
   if (response.status < CLIENT_ERROR_STATUS) return;
   // A 5xx (often a gateway timeout) can arrive after the write was applied.
   const writeMayHaveApplied =
-    response.status >= SERVER_ERROR_STATUS && operation.method !== "GET";
+    response.status >= SERVER_ERROR_STATUS && isWrite(operation);
   const parts = [
     `Cresium respondió ${response.status}: ${JSON.stringify(response.body)}`,
     authHint(response, session),
