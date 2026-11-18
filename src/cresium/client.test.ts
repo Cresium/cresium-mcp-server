@@ -11,10 +11,7 @@ const credentials = {
 };
 const fake = startFakeCresium(credentials.secret);
 const target = { baseUrl: fake.baseUrl, credentials };
-const options = {
-  signal: new AbortController().signal,
-  traceId: "trace-1234",
-};
+const signal = new AbortController().signal;
 
 afterAll(() => fake.stop());
 beforeEach(() => {
@@ -40,7 +37,7 @@ describe("callCresium", () => {
     await callCresium(
       target,
       { method: "GET", url: "/v3/transaction/search?types%5B%5D=DEPOSIT" },
-      options,
+      signal,
     );
     const [request] = fake.received;
     expect(request?.signatureValid).toBe(true);
@@ -58,7 +55,7 @@ describe("callCresium", () => {
         url: "/v3/deposit-address/cvu",
         body: { value: "a.b", n: 1.5 },
       },
-      options,
+      signal,
     );
     const [request] = fake.received;
     expect(request?.signatureValid).toBe(true);
@@ -70,7 +67,7 @@ describe("callCresium", () => {
     const response = await callCresium(
       target,
       { method: "GET", url: "/v3/deposit-address/" },
-      options,
+      signal,
     );
     expect(response).toEqual({ status: 403, body: { error: "FORBIDDEN" } });
   });
@@ -80,7 +77,7 @@ describe("callCresium", () => {
     const response = await callCresium(
       target,
       { method: "GET", url: "/v3/health/" },
-      options,
+      signal,
     );
     expect(response).toEqual({ status: 502, body: "Bad Gateway" });
   });
@@ -90,17 +87,16 @@ describe("callCresium", () => {
     const error: unknown = await callCresium(
       unreachable,
       { method: "GET", url: "/v3/health/" },
-      options,
+      signal,
     ).catch((thrown: unknown) => thrown);
     expect(error).toBeInstanceOf(Error);
   });
 });
 
-describe("callCresium tracing", () => {
-  it("names itself and sends the trace id, so support can find the call in mage's logs", async () => {
-    await callCresium(target, { method: "GET", url: "/v3/balance/" }, options);
+describe("callCresium identification", () => {
+  it("names itself with the User-Agent", async () => {
+    await callCresium(target, { method: "GET", url: "/v3/balance/" }, signal);
     const [request] = fake.received;
-    expect(request?.headers.get("x-trace-id")).toBe("trace-1234");
     expect(request?.headers.get("user-agent")).toBe(USER_AGENT);
   });
 });

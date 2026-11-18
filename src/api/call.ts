@@ -32,7 +32,7 @@ export async function sendRequest(
     const response = await callCresium(
       { baseUrl: apiBaseUrl, credentials },
       request,
-      { signal: ctx.signal, traceId: ctx.traceId },
+      ctx.signal,
     );
     status = response.status;
     return response;

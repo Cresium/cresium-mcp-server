@@ -82,9 +82,7 @@ Your agent's prompt menu offers two ready-made tasks:
 | `integrar_cvus_dedicados` | Runs the dedicated CVU flow in sandbox, then writes the signing client and the webhook in your project. |
 | `depurar_firma`           | Compares the request your code signs with the one this server signs and shows the difference.           |
 
-### Errors and support
-
-Every failed tool call ends with a trace id (`Id de rastreo para soporte: ...`), including timeouts. The exception is arguments that your MCP client or the SDK rejects as invalid before the tool runs. Send it to Cresium support: it finds that exact call in the logs.
+### Errors
 
 The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.
 
@@ -104,7 +102,7 @@ cresium-mcp  (src/http/app.ts)
 
 - The server stores no credentials: they live only for the request that carries them. It keeps in memory a one-way hash that says "these credentials worked"; the hash is gone on restart. A success is trusted for 10 minutes, so a docs tool logs one `GET /v3/balance/wallets` check per credential every 10 minutes instead of one per use.
 - Logs are JSON lines (Pino). Each tool call logs the environment, company, the API key's last 4 characters, the tool, the V3 operation, its status and duration. The secret and the full key are never logged, and `src/http/app.test.ts` checks this.
-- Each call to the API carries an `x-trace-id` and the `User-Agent` `cresium-mcp-server/<version>`. The log line of the call has the same trace id.
+- Each call to the API carries the `User-Agent` `cresium-mcp-server/<version>`.
 - The logger censors the `x-api-key` and `x-api-secret` headers and any `apiKey` or `secret` field, in case new code ever logs them.
 - `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. Run `bun run spec:update` after the API docs change. The `API spec drift` workflow compares it every weekday with the published `docs.cresium.com/openapi.json` and fails when they differ.
 

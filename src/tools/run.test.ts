@@ -9,9 +9,7 @@ import { ToolError } from "./errors.ts";
 import { runTool } from "./run.ts";
 import type { ToolCall, ToolDef } from "./types.ts";
 
-const TRACE_ID = "trace-run-test";
 const WRITE_ADVICE = "Verificá el estado antes de reintentar.";
-const TRACE_SUFFIX = ` Id de rastreo para soporte: ${TRACE_ID}.`;
 
 function call(
   tool: ToolDef,
@@ -28,7 +26,6 @@ function call(
         credentials: { apiKey: "k", secret: "s", companyId: "1" },
       },
       logger,
-      traceId: TRACE_ID,
       signal: new AbortController().signal,
     },
   };
@@ -75,21 +72,20 @@ describe("runTool", () => {
     const result = await runTool(call(echo, { text: 1 }), 1000);
     expect(result.isError).toBe(true);
     expect(errorText(result)).toStartWith("Input inválido:");
-    expect(errorText(result)).toEndWith(TRACE_SUFFIX);
   });
 
-  it("shows a ToolError's message to the caller, with the trace id", async () => {
+  it("shows a ToolError's message to the caller", async () => {
     const result = await runTool(
       call(failing(new ToolError("Una sola sentencia.")), {}),
       1000,
     );
     expect(result).toEqual({
       isError: true,
-      content: [{ type: "text", text: `Una sola sentencia.${TRACE_SUFFIX}` }],
+      content: [{ type: "text", text: "Una sola sentencia." }],
     });
   });
 
-  it("hides any other error from the caller, logs it and gives the trace id", async () => {
+  it("hides any other error from the caller, and logs it", async () => {
     const { lines, logger } = captureLogger();
     const result = await runTool(
       call(failing(new Error("connect ECONNREFUSED 10.0.0.1")), {}, logger),
@@ -100,7 +96,7 @@ describe("runTool", () => {
       content: [
         {
           type: "text",
-          text: `Error interno ejecutando test_fail. Quedó registrado en el log.${TRACE_SUFFIX}`,
+          text: "Error interno ejecutando test_fail. Quedó registrado en el log.",
         },
       ],
     });
@@ -121,7 +117,7 @@ describe("runTool", () => {
       content: [
         {
           type: "text",
-          text: `test_slow superó el tiempo máximo de 0.05s.${TRACE_SUFFIX}`,
+          text: "test_slow superó el tiempo máximo de 0.05s.",
         },
       ],
     });
@@ -143,7 +139,7 @@ describe("runTool", () => {
     expect(seen?.aborted).toBe(true);
   });
 
-  it("tells the agent a timed-out write may have happened and ends with the trace id", async () => {
+  it("tells the agent a timed-out write may have happened", async () => {
     const slowWrite = defineTool({
       name: "test_write",
       description: "never ends",
@@ -158,7 +154,6 @@ describe("runTool", () => {
       "test_write superó el tiempo máximo de 0.02s.",
     );
     expect(errorText(result)).toContain(WRITE_ADVICE);
-    expect(errorText(result)).toEndWith(TRACE_SUFFIX);
   });
 
   it("warns that a write failing for an unknown reason may have happened", async () => {

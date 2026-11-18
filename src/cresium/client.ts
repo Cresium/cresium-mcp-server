@@ -1,9 +1,8 @@
 import { createHmac } from "node:crypto";
 
 import { USER_AGENT } from "../constants.ts";
-import { TIMESTAMP_PLACEHOLDER, TRACE_ID_HEADER } from "./constants.ts";
+import { TIMESTAMP_PLACEHOLDER } from "./constants.ts";
 import type {
-  CresiumCallOptions,
   CresiumRequest,
   CresiumRequestPreview,
   CresiumResponse,
@@ -51,7 +50,7 @@ export function previewRequest(
 export async function callCresium(
   { baseUrl, credentials }: CresiumTarget,
   { method, url, body }: CresiumRequest,
-  { signal, traceId }: CresiumCallOptions,
+  signal: AbortSignal,
 ): Promise<CresiumResponse> {
   const jsonBody = serializeBody(body);
   const timestamp = new Date().toISOString();
@@ -72,7 +71,6 @@ export async function callCresium(
       "x-company-id": credentials.companyId,
       "x-timestamp": timestamp,
       "x-signature": signature,
-      [TRACE_ID_HEADER]: traceId,
       "user-agent": USER_AGENT,
       ...contentType,
     },

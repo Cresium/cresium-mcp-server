@@ -34,12 +34,6 @@ export interface CresiumTarget {
   readonly credentials: PartnerCredentials;
 }
 
-export interface CresiumCallOptions {
-  readonly signal: AbortSignal;
-  /** Sent as `x-trace-id`, so support can find this call in mage's logs. */
-  readonly traceId: string;
-}
-
 /** A request as it would be sent, without credentials or a signature. */
 export interface CresiumRequestPreview {
   readonly method: HttpMethod;

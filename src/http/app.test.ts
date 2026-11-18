@@ -181,11 +181,10 @@ describe("API tools", () => {
     const result = await callTool(client, "read_api", {
       operation: "POST /v3/deposit-address/cvu",
     });
-    expect(result.isError).toBe(true);
-    expect(result.text).toStartWith(
-      "POST /v3/deposit-address/cvu escribe datos. Usá write_api para ejecutarla.",
-    );
-    expect(result.text).toMatch(/Id de rastreo para soporte: [\w-]+\.$/);
+    expect(result).toEqual({
+      isError: true,
+      text: "POST /v3/deposit-address/cvu escribe datos. Usá write_api para ejecutarla.",
+    });
     expect(sandbox.received).toHaveLength(0);
   });
 
@@ -366,21 +365,6 @@ describe("connection, dry run and tracing", () => {
     );
     expect(result.text).not.toContain(SECRET);
     expect(production.received).toHaveLength(0);
-  });
-
-  it("puts the trace id Cresium received in the error and in the log", async () => {
-    production.reply({ status: 400, body: '{"error":"EXISTING_ALIAS"}' });
-    const result = await callTool(client, "write_api", {
-      operation: "POST /v3/deposit-address/cvu",
-      body: { value: "ya.existe" },
-    });
-    const traceId = production.received[0]?.headers.get("x-trace-id") ?? "";
-    expect(traceId).not.toBe("");
-    expect(result.text).toEndWith(`Id de rastreo para soporte: ${traceId}.`);
-    const apiCall = app.logLines
-      .map((line) => JSON.parse(line) as { msg?: string; traceId?: string })
-      .find((entry) => entry.msg === "cresium api call");
-    expect(apiCall?.traceId).toBe(traceId);
   });
 
   it("search_api without a query lists every operation without its schema", async () => {

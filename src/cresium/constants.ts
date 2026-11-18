@@ -1,9 +1,6 @@
 /** Path values that would empty the segment or let fetch normalize the URL away from the signed one. */
 export const UNSAFE_PATH_VALUES: ReadonlySet<string> = new Set(["", ".", ".."]);
 
-/** mage logs every line of a request under the id it receives in this header. */
-export const TRACE_ID_HEADER = "x-trace-id";
-
 /** Stands for the `x-timestamp` value in a dry run, where nothing is signed. */
 export const TIMESTAMP_PLACEHOLDER = "<x-timestamp>";
 

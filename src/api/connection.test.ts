@@ -21,7 +21,6 @@ const UNAUTHORIZED_REPLY = {
   body: '{"code":401,"error":"UNAUTHORIZED","message":"Invalid signature when checking partner authentication"}',
 } as const;
 const OK_REPLY = { status: 200, body: '{"data":true}' } as const;
-const TRACE_ID = "trace-connection-test";
 const EXPIRED_TTL_MS = 0;
 
 const cresium = startFakeCresium(SECRET);
@@ -57,7 +56,6 @@ function contextFor(
       credentials,
     },
     logger,
-    traceId: TRACE_ID,
     signal: new AbortController().signal,
   };
 }

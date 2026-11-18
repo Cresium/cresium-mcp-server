@@ -9,10 +9,8 @@ export type ToolName = `${string}_${string}`;
 
 export interface ToolContext {
   readonly session: PartnerSession;
-  /** Already bound to the environment, company, masked API key and trace id. */
+  /** Already bound to the environment, company, masked API key. */
   readonly logger: Logger;
-  /** One per tool call; sent to Cresium as `x-trace-id`. */
-  readonly traceId: string;
   readonly signal: AbortSignal;
 }
 

@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 
 import { SERVER_INFO, UNAUTHORIZED_STATUS } from "../constants.ts";
@@ -66,22 +64,15 @@ function buildMcpServer(
           openWorldHint: true,
         },
       },
-      (input, ctx) => {
-        const traceId = randomUUID();
-        return runTool(
+      (input, ctx) =>
+        runTool(
           {
             tool,
             input,
-            context: {
-              session,
-              logger: logger.child({ traceId }),
-              traceId,
-              signal: ctx.mcpReq.signal,
-            },
+            context: { session, logger, signal: ctx.mcpReq.signal },
           },
           options.timeoutMs,
-        );
-      },
+        ),
     );
   }
   return server;
