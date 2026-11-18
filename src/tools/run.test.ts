@@ -7,9 +7,13 @@ import { captureLogger } from "../../test/support/capture-logger.ts";
 import { UserFacingError } from "../errors.ts";
 import { defineTool } from "./define.ts";
 import { runTool } from "./run.ts";
-import type { ToolCall, ToolDef } from "./types.ts";
+import type { RunOptions, ToolCall, ToolDef } from "./types.ts";
 
 const WRITE_ADVICE = "Verificá el estado antes de reintentar.";
+
+function allowing(timeoutMs: number): RunOptions {
+  return { timeoutMs, ensureConnected: () => Promise.resolve() };
+}
 
 function call(
   tool: ToolDef,
@@ -57,7 +61,10 @@ function failing(error: Error): ToolDef {
 describe("runTool", () => {
   it("returns the tool's text as content and logs the call", async () => {
     const { lines, logger } = captureLogger();
-    const result = await runTool(call(echo, { text: "hola" }, logger), 1000);
+    const result = await runTool(
+      call(echo, { text: "hola" }, logger),
+      allowing(1000),
+    );
     expect(result).toEqual({
       content: [{ type: "text", text: "sandbox:hola" }],
     });
@@ -69,7 +76,7 @@ describe("runTool", () => {
   });
 
   it("answers invalid input as an error result without running the tool", async () => {
-    const result = await runTool(call(echo, { text: 1 }), 1000);
+    const result = await runTool(call(echo, { text: 1 }), allowing(1000));
     expect(result.isError).toBe(true);
     expect(errorText(result)).toStartWith("Input inválido:");
   });
@@ -77,7 +84,7 @@ describe("runTool", () => {
   it("shows a UserFacingError's message to the caller", async () => {
     const result = await runTool(
       call(failing(new UserFacingError("Una sola sentencia.")), {}),
-      1000,
+      allowing(1000),
     );
     expect(result).toEqual({
       isError: true,
@@ -89,7 +96,7 @@ describe("runTool", () => {
     const { lines, logger } = captureLogger();
     const result = await runTool(
       call(failing(new Error("connect ECONNREFUSED 10.0.0.1")), {}, logger),
-      1000,
+      allowing(1000),
     );
     expect(result).toEqual({
       isError: true,
@@ -111,7 +118,7 @@ describe("runTool", () => {
       access: "read",
       run: () => new Promise<string>(() => undefined),
     });
-    const result = await runTool(call(slow, {}), 50);
+    const result = await runTool(call(slow, {}), allowing(50));
     expect(result).toEqual({
       isError: true,
       content: [
@@ -135,7 +142,7 @@ describe("runTool", () => {
         return new Promise<string>(() => undefined);
       },
     });
-    await runTool(call(watcher, {}), 20);
+    await runTool(call(watcher, {}), allowing(20));
     expect(seen?.aborted).toBe(true);
   });
 
@@ -148,7 +155,7 @@ describe("runTool", () => {
       unknownOutcomeAdvice: WRITE_ADVICE,
       run: () => new Promise<string>(() => undefined),
     });
-    const result = await runTool(call(slowWrite, {}), 20);
+    const result = await runTool(call(slowWrite, {}), allowing(20));
     expect(result.isError).toBe(true);
     expect(errorText(result)).toStartWith(
       "test_write superó el tiempo máximo de 0.02s.",
@@ -169,7 +176,7 @@ describe("runTool", () => {
         }),
         {},
       ),
-      1000,
+      allowing(1000),
     );
     expect(errorText(result)).toContain(WRITE_ADVICE);
   });
@@ -189,20 +196,59 @@ describe("runTool", () => {
         failingWrite(new UserFacingError("Falló.", { outcomeUnknown: true })),
         {},
       ),
-      1000,
+      allowing(1000),
     );
     const known = await runTool(
       call(failingWrite(new UserFacingError("Falló.")), {}),
-      1000,
+      allowing(1000),
     );
     expect(errorText(unknown)).toBe(`Falló. ${WRITE_ADVICE}`);
     expect(errorText(known)).toBe("Falló.");
   });
 
+  it("runs a tool that requires a verified partner only after the guard accepts", async () => {
+    let ran = false;
+    const guarded = defineTool({
+      name: "test_guarded",
+      description: "needs a verified partner",
+      input: z.object({}),
+      access: "read",
+      requiresVerifiedPartner: true,
+      run: () => {
+        ran = true;
+        return Promise.resolve("listo");
+      },
+    });
+    const refusing: RunOptions = {
+      timeoutMs: 1000,
+      ensureConnected: () =>
+        Promise.reject(new UserFacingError("Credenciales rechazadas.")),
+    };
+    const refused = await runTool(call(guarded, {}), refusing);
+    expect(refused).toEqual({
+      isError: true,
+      content: [{ type: "text", text: "Credenciales rechazadas." }],
+    });
+    expect(ran).toBe(false);
+    const accepted = await runTool(call(guarded, {}), allowing(1000));
+    expect(errorText(accepted)).toBe("listo");
+    expect(ran).toBe(true);
+  });
+
+  it("does not ask the guard about a tool that does not require a verified partner", async () => {
+    const refusing: RunOptions = {
+      timeoutMs: 1000,
+      ensureConnected: () =>
+        Promise.reject(new UserFacingError("Credenciales rechazadas.")),
+    };
+    const result = await runTool(call(echo, { text: "hola" }), refusing);
+    expect(result.isError).toBeUndefined();
+  });
+
   it("does not add the write warning to a read", async () => {
     const result = await runTool(
       call(failing(new Error("connect ECONNREFUSED")), {}),
-      1000,
+      allowing(1000),
     );
     expect(JSON.stringify(result)).not.toContain("antes de reintentar");
   });

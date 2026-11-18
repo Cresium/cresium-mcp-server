@@ -71,7 +71,10 @@ function buildMcpServer(
             input,
             context: { session, logger, signal: ctx.mcpReq.signal },
           },
-          options.timeoutMs,
+          {
+            timeoutMs: options.timeoutMs,
+            ensureConnected: options.ensureConnected,
+          },
         ),
     );
   }

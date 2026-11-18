@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { PartnerSession } from "../partner/types.ts";
-import type { ToolContext } from "../tools/types.ts";
+import type { ConnectionGuard, ToolContext } from "../tools/types.ts";
 import { callApi } from "./call.ts";
 import {
   CONNECTION_CACHE_TTL_MS,
@@ -9,7 +9,6 @@ import {
 } from "./constants.ts";
 import { findOperation } from "./operations.ts";
 import { NO_OPERATION_INPUT } from "./schema.ts";
-import type { ConnectionGuard } from "./types.ts";
 
 export async function checkConnection(ctx: ToolContext): Promise<void> {
   await callApi(

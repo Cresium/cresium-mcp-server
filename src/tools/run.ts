@@ -2,7 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 
 import { UserFacingError } from "../errors.ts";
 import { rejectOnAbort } from "./abort.ts";
-import type { ToolCall } from "./types.ts";
+import type { RunOptions, ToolCall } from "./types.ts";
 
 function errorResult(text: string): CallToolResult {
   return { isError: true, content: [{ type: "text", text }] };
@@ -22,7 +22,7 @@ function withAdvice({ tool }: ToolCall, message: string): string {
 
 async function execute(
   call: ToolCall,
-  timeoutMs: number,
+  { timeoutMs, ensureConnected }: RunOptions,
 ): Promise<CallToolResult> {
   const { tool, input, context } = call;
   const parsed = tool.input.safeParse(input);
@@ -31,11 +31,13 @@ async function execute(
   }
   const timeout = AbortSignal.timeout(timeoutMs);
   const signal = AbortSignal.any([context.signal, timeout]);
+  const runContext = { ...context, signal };
+  const run = async (): Promise<string> => {
+    if (tool.requiresVerifiedPartner) await ensureConnected(runContext);
+    return await tool.run(parsed.data, runContext);
+  };
   try {
-    const text = await Promise.race([
-      tool.run(parsed.data, { ...context, signal }),
-      rejectOnAbort(signal),
-    ]);
+    const text = await Promise.race([run(), rejectOnAbort(signal)]);
     return { content: [{ type: "text", text }] };
   } catch (error) {
     if (error instanceof UserFacingError) {
@@ -53,10 +55,10 @@ async function execute(
 
 export async function runTool(
   call: ToolCall,
-  timeoutMs: number,
+  options: RunOptions,
 ): Promise<CallToolResult> {
   const startedAt = performance.now();
-  const result = await execute(call, timeoutMs);
+  const result = await execute(call, options);
   call.context.logger.info(
     {
       tool: call.tool.name,

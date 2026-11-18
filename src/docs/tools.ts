@@ -1,6 +1,5 @@
 import * as z from "zod";
 
-import type { ConnectionGuard } from "../api/types.ts";
 import { defineTool } from "../tools/define.ts";
 import type { ToolDef } from "../tools/types.ts";
 import {
@@ -11,10 +10,7 @@ import {
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
 import { formatDocsSearch } from "./search.ts";
 
-export function createDocsTools(
-  docsUrl: string,
-  ensureConnected: ConnectionGuard,
-): readonly ToolDef[] {
+export function createDocsTools(docsUrl: string): readonly ToolDef[] {
   const searchDocs = defineTool({
     name: "search_docs",
     description:
@@ -26,8 +22,8 @@ export function createDocsTools(
         .describe('Qué buscar, por ejemplo "verificar firma de webhook".'),
     }),
     access: "read",
+    requiresVerifiedPartner: true,
     run: async ({ query }, ctx) => {
-      await ensureConnected(ctx);
       const blocks = await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.search, args: { query, language: "es" } },
@@ -48,10 +44,8 @@ export function createDocsTools(
         .describe("Path de la página, sin dominio ni extensión."),
     }),
     access: "read",
-    run: async ({ path }, ctx) => {
-      await ensureConnected(ctx);
-      return await fetchDocPage(docsUrl, path, ctx.signal);
-    },
+    requiresVerifiedPartner: true,
+    run: ({ path }, ctx) => fetchDocPage(docsUrl, path, ctx.signal),
   });
 
   const sendDocsFeedback = defineTool({
@@ -64,8 +58,8 @@ export function createDocsTools(
     }),
     access: "write",
     unknownOutcomeAdvice: DOCS_FEEDBACK_UNKNOWN_OUTCOME,
+    requiresVerifiedPartner: true,
     run: async ({ path, feedback }, ctx) => {
-      await ensureConnected(ctx);
       const blocks = await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.feedback, args: { path, feedback } },

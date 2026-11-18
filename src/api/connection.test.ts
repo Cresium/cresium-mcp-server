@@ -1,13 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import * as z from "zod";
 
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
-import { DOCS_FEEDBACK_UNKNOWN_OUTCOME } from "../docs/constants.ts";
-import { createDocsTools } from "../docs/tools.ts";
 import { UserFacingError } from "../errors.ts";
 import { createLogger } from "../logger.ts";
 import type { Environment, PartnerCredentials } from "../partner/types.ts";
+import { defineTool } from "../tools/define.ts";
 import { runTool } from "../tools/run.ts";
-import type { ToolContext, ToolDef } from "../tools/types.ts";
+import type { ToolContext } from "../tools/types.ts";
 import { createConnectionGuard } from "./connection.ts";
 
 const SECRET = "the-real-secret";
@@ -24,24 +24,27 @@ const OK_REPLY = { status: 200, body: '{"data":true}' } as const;
 const EXPIRED_TTL_MS = 0;
 
 const cresium = startFakeCresium(SECRET);
-let docsRequests = 0;
-const docs = Bun.serve({
-  port: 0,
-  fetch: () => {
-    docsRequests += 1;
-    return new Response("# Sandbox");
+let toolRuns = 0;
+const guardedTool = defineTool({
+  name: "test_guarded",
+  description: "needs a verified partner",
+  input: z.object({}),
+  access: "read",
+  requiresVerifiedPartner: true,
+  run: () => {
+    toolRuns += 1;
+    return Promise.resolve("# Sandbox");
   },
 });
 const logger = createLogger("silent", { write: () => undefined });
 
 afterAll(async () => {
   await cresium.stop();
-  await docs.stop(true);
 });
 
 beforeEach(() => {
   cresium.received.length = 0;
-  docsRequests = 0;
+  toolRuns = 0;
   cresium.reply(OK_REPLY);
 });
 
@@ -60,132 +63,89 @@ function contextFor(
   };
 }
 
-function docsTool(
-  name: string,
-  ttlMs?: number,
-  docsUrl = `http://localhost:${docs.port}`,
-): ToolDef {
-  const guard = createConnectionGuard(ttlMs);
-  const tool = createDocsTools(docsUrl, guard).find(
-    (candidate) => candidate.name === name,
-  );
-  if (!tool) throw new Error(`${name} is not registered`);
-  return tool;
+function guardedRunner(ttlMs?: number) {
+  const ensureConnected = createConnectionGuard(ttlMs);
+  return async (
+    credentials: PartnerCredentials,
+    environment?: Environment,
+  ): Promise<string> => {
+    const result = await runTool(
+      {
+        tool: guardedTool,
+        input: {},
+        context: contextFor(credentials, environment),
+      },
+      { timeoutMs: 5000, ensureConnected },
+    );
+    const [first] = result.content;
+    return first?.type === "text" ? first.text : "";
+  };
 }
 
-function readDocPage(ttlMs?: number): ToolDef {
-  return docsTool("read_doc_page", ttlMs);
-}
-
-function readSandboxPage(
-  tool: ToolDef,
-  credentials: PartnerCredentials,
-  environment?: Environment,
-): Promise<string> {
-  return tool.run({ path: "sandbox" }, contextFor(credentials, environment));
-}
-
-describe("docs tools connection guard", () => {
-  it.each([
-    ["search_docs", { query: "sandbox" }],
-    ["read_doc_page", { path: "sandbox" }],
-    ["send_docs_feedback", { path: "sandbox", feedback: "typo" }],
-  ])(
-    "refuses made-up credentials in %s and never reaches the docs server",
-    async (name, input) => {
-      cresium.reply(UNAUTHORIZED_REPLY);
-      const error = await docsTool(name)
-        .run(input, contextFor(VALID))
-        .catch((caught: unknown) => caught);
-      expect(error).toBeInstanceOf(UserFacingError);
-      expect(error).toHaveProperty(
-        "message",
-        expect.stringContaining("x-api-secret"),
-      );
-      expect(docsRequests).toBe(0);
-    },
-  );
-
+describe("connection guard", () => {
   it("does not remember a failure", async () => {
-    const tool = readDocPage();
+    const run = guardedRunner();
     cresium.reply(UNAUTHORIZED_REPLY);
-    await readSandboxPage(tool, VALID).catch(() => undefined);
+    await run(VALID);
     cresium.reply(OK_REPLY);
-    expect(await readSandboxPage(tool, VALID)).toBe("# Sandbox");
+    expect(await run(VALID)).toBe("# Sandbox");
     expect(cresium.received).toHaveLength(2);
   });
 
   it("runs for valid credentials and verifies them once", async () => {
-    const tool = readDocPage();
-    expect(await readSandboxPage(tool, VALID)).toBe("# Sandbox");
-    expect(await readSandboxPage(tool, VALID)).toBe("# Sandbox");
+    const run = guardedRunner();
+    expect(await run(VALID)).toBe("# Sandbox");
+    expect(await run(VALID)).toBe("# Sandbox");
     expect(cresium.received).toHaveLength(1);
     expect(cresium.received[0]?.signatureValid).toBe(true);
-    expect(docsRequests).toBe(2);
+    expect(toolRuns).toBe(2);
   });
 
   it("verifies again once the remembered success has expired", async () => {
-    const tool = readDocPage(EXPIRED_TTL_MS);
-    await readSandboxPage(tool, VALID);
-    await readSandboxPage(tool, VALID);
+    const run = guardedRunner(EXPIRED_TTL_MS);
+    await run(VALID);
+    await run(VALID);
     expect(cresium.received).toHaveLength(2);
   });
 
   it("rejects a wrong secret for a key that was already verified", async () => {
-    const tool = readDocPage();
-    await readSandboxPage(tool, VALID);
+    const run = guardedRunner();
+    await run(VALID);
     cresium.reply(UNAUTHORIZED_REPLY);
-    const error = await readSandboxPage(tool, {
-      ...VALID,
-      secret: "guess",
-    }).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(UserFacingError);
-    expect(error).toHaveProperty(
-      "message",
-      expect.stringContaining("x-api-secret"),
-    );
+    const text = await run({ ...VALID, secret: "guess" });
+    expect(text).toContain("x-api-secret");
+    expect(toolRuns).toBe(1);
     expect(cresium.received).toHaveLength(2);
   });
 
   it("verifies credentials again the first time they are used on another environment", async () => {
-    const tool = readDocPage();
-    await readSandboxPage(tool, VALID, "sandbox");
-    await readSandboxPage(tool, VALID, "production");
-    await readSandboxPage(tool, VALID, "production");
+    const run = guardedRunner();
+    await run(VALID, "sandbox");
+    await run(VALID, "production");
+    await run(VALID, "production");
     expect(cresium.received).toHaveLength(2);
   });
 
   it("verifies again for a different API key with the same secret", async () => {
-    const tool = readDocPage();
-    await readSandboxPage(tool, VALID);
-    await readSandboxPage(tool, { ...VALID, apiKey: "another-api-key" });
+    const run = guardedRunner();
+    await run(VALID);
+    await run({ ...VALID, apiKey: "another-api-key" });
     expect(cresium.received).toHaveLength(2);
   });
 
   it("verifies again for a different company id with the same key and secret", async () => {
-    const tool = readDocPage();
-    await readSandboxPage(tool, VALID);
-    await readSandboxPage(tool, { ...VALID, companyId: "45" });
+    const run = guardedRunner();
+    await run(VALID);
+    await run({ ...VALID, companyId: "45" });
     expect(cresium.received).toHaveLength(2);
   });
 
-  it("gives send_docs_feedback its own advice, not the API's, when it fails for an unknown reason", async () => {
-    const tool = docsTool(
-      "send_docs_feedback",
-      undefined,
-      "http://localhost:9",
+  it("refuses a partner Cresium rejects with an error the agent can read", async () => {
+    cresium.reply(UNAUTHORIZED_REPLY);
+    const ensureConnected = createConnectionGuard();
+    const error = await ensureConnected(contextFor(VALID)).catch(
+      (caught: unknown) => caught,
     );
-    const result = await runTool(
-      {
-        tool,
-        input: { path: "sandbox", feedback: "typo" },
-        context: contextFor(VALID),
-      },
-      5000,
-    );
-    const text = JSON.stringify(result);
-    expect(result.isError).toBe(true);
-    expect(text).toContain(DOCS_FEEDBACK_UNKNOWN_OUTCOME);
-    expect(text).not.toContain("transaction");
+    expect(error).toBeInstanceOf(UserFacingError);
   });
 });

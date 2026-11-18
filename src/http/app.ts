@@ -31,16 +31,14 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(originValidation(allowedHosts));
 
   const ensureConnected = createConnectionGuard();
-  const tools = [
-    ...API_TOOLS,
-    ...createDocsTools(config.docsUrl, ensureConnected),
-  ];
+  const tools = [...API_TOOLS, ...createDocsTools(config.docsUrl)];
   for (const environment of ENVIRONMENTS) {
     const mcp = createMcpEndpoint({
       tools,
       environment,
       apiBaseUrl: config.apiUrls[environment],
       timeoutMs: config.toolTimeoutMs,
+      ensureConnected,
       logger,
     });
     app.all(`/${environment}`, toNodeHandler({ fetch: mcp }));
