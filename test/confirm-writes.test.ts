@@ -387,14 +387,21 @@ describe("what the confirmation is bound to", () => {
     await client.close();
   });
 
-  it("refuses a state that was altered", async () => {
+  it.each([
+    ["payload", 1],
+    ["signature", 2],
+  ])("refuses a state whose %s was altered", async (_part, index) => {
     const client = await app.connect("production", HEADERS, MANUAL);
     const state = await firstAsk(client, CVU);
-    const last = state.at(-1) === "A" ? "B" : "A";
+    // A middle character carries all six of its bits into the decoded bytes;
+    // the last one can hold padding bits the decoder ignores.
+    const parts = state.split(".");
+    const part = parts[index] ?? "";
+    const middle = Math.floor(part.length / 2);
+    parts[index] =
+      `${part.slice(0, middle)}${part[middle] === "A" ? "B" : "A"}${part.slice(middle + 1)}`;
     expect(
-      await failure(
-        retry(client, CVU, { state: `${state.slice(0, -1)}${last}` }),
-      ),
+      await failure(retry(client, CVU, { state: parts.join(".") })),
     ).toContain(INVALID_STATE);
     expect(
       await failure(retry(client, CVU, { state: "v1.e30.AAAA" })),
