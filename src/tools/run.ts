@@ -14,6 +14,12 @@ function describeFailure({ tool, context }: ToolCall, error: unknown): string {
   return `Error interno ejecutando ${tool.name}. Quedó registrado en el log.`;
 }
 
+function withAdvice({ tool }: ToolCall, message: string): string {
+  return tool.access === "write"
+    ? `${message} ${tool.unknownOutcomeAdvice}`
+    : message;
+}
+
 async function execute(
   call: ToolCall,
   timeoutMs: number,
@@ -32,16 +38,16 @@ async function execute(
     ]);
     return { content: [{ type: "text", text }] };
   } catch (error) {
-    if (error instanceof ToolError) return errorResult(error.message);
+    if (error instanceof ToolError) {
+      return errorResult(
+        error.outcomeUnknown ? withAdvice(call, error.message) : error.message,
+      );
+    }
     const message = timeout.aborted
       ? `${tool.name} superó el tiempo máximo de ${timeoutMs / 1000}s.`
       : describeFailure(call, error);
     // Any failure we cannot attribute may have happened after Cresium applied the write.
-    return errorResult(
-      tool.access === "write"
-        ? `${message} ${tool.unknownOutcomeAdvice}`
-        : message,
-    );
+    return errorResult(withAdvice(call, message));
   }
 }
 

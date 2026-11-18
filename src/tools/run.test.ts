@@ -174,6 +174,28 @@ describe("runTool", () => {
     expect(errorText(result)).toContain(WRITE_ADVICE);
   });
 
+  it("adds a write's advice to a ToolError that says the outcome is unknown, and only to that one", async () => {
+    const failingWrite = (error: ToolError): ToolDef =>
+      defineTool({
+        name: "test_write",
+        description: "fails",
+        input: z.object({}),
+        access: "write",
+        unknownOutcomeAdvice: WRITE_ADVICE,
+        run: () => Promise.reject(error),
+      });
+    const unknown = await runTool(
+      call(failingWrite(new ToolError("Falló.", { outcomeUnknown: true })), {}),
+      1000,
+    );
+    const known = await runTool(
+      call(failingWrite(new ToolError("Falló.")), {}),
+      1000,
+    );
+    expect(errorText(unknown)).toBe(`Falló. ${WRITE_ADVICE}`);
+    expect(errorText(known)).toBe("Falló.");
+  });
+
   it("does not add the write warning to a read", async () => {
     const result = await runTool(
       call(failing(new Error("connect ECONNREFUSED")), {}),

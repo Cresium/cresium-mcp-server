@@ -9,7 +9,7 @@ import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { ToolError } from "../tools/errors.ts";
 import type { ToolAccess, ToolContext } from "../tools/types.ts";
-import { API_WRITE_UNKNOWN_OUTCOME, AUTH_PROBLEMS } from "./constants.ts";
+import { AUTH_PROBLEMS } from "./constants.ts";
 import type { Operation } from "./types.ts";
 
 export function accessOf(operation: Operation): ToolAccess {
@@ -72,7 +72,8 @@ export function assertSucceeded(
   const parts = [
     `Cresium respondió ${response.status}: ${toJsonText(response.body)}`,
     authHint(response, session),
-    writeMayHaveApplied ? API_WRITE_UNKNOWN_OUTCOME : undefined,
   ];
-  throw new ToolError(parts.filter(Boolean).join(" "));
+  throw new ToolError(parts.filter(Boolean).join(" "), {
+    outcomeUnknown: writeMayHaveApplied,
+  });
 }
