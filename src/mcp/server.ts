@@ -1,12 +1,25 @@
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import {
+  createMcpHandler,
+  DEFAULT_MAX_REQUEST_BODY_SIZE,
+  McpServer,
+  readRequestBody,
+} from "@modelcontextprotocol/server";
 
-import { SERVER_INFO, UNAUTHORIZED_STATUS } from "../constants.ts";
+import {
+  BAD_REQUEST_STATUS,
+  SERVER_INFO,
+  UNAUTHORIZED_STATUS,
+} from "../constants.ts";
 import { maskApiKey, readCredentials } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { runTool } from "../tools/run.ts";
 import type { ToolDef } from "../tools/types.ts";
-import { PROMPTS, SERVER_INSTRUCTIONS } from "./constants.ts";
+import {
+  BATCH_REFUSED_MESSAGE,
+  PROMPTS,
+  SERVER_INSTRUCTIONS,
+} from "./constants.ts";
 import type { McpEndpointOptions } from "./types.ts";
 
 // A write tool names the environment in its own description, because agents read it right before calling.
@@ -70,6 +83,28 @@ function buildMcpServer(
   return server;
 }
 
+// The SDK's 2025-era fallback runs every message of a batch at once, so one POST could fan out into
+// 100 signed calls, and two identical ones collide on mage's "Signature already used". The SDK has no
+// option to refuse batches, so this reads a clone under the SDK's own size limit; anything it cannot
+// read or parse is left for the SDK to answer.
+async function isBatch(request: Request): Promise<boolean> {
+  if (request.method.toUpperCase() !== "POST") return false;
+  try {
+    // Bun types `clone()` as undici's Request, which the SDK's helper does not take, so only its body is reused.
+    const probe = new Request(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: request.clone().body,
+    });
+    const read = await readRequestBody(probe, DEFAULT_MAX_REQUEST_BODY_SIZE);
+    if (read.tooLarge) return false;
+    const body: unknown = JSON.parse(read.text);
+    return Array.isArray(body);
+  } catch {
+    return false;
+  }
+}
+
 export function createMcpEndpoint(
   options: McpEndpointOptions,
 ): (request: Request) => Promise<Response> {
@@ -82,6 +117,12 @@ export function createMcpEndpoint(
           message: `Credenciales inválidas: ${result.problems.join("; ")}.`,
         },
         { status: UNAUTHORIZED_STATUS },
+      );
+    }
+    if (await isBatch(request)) {
+      return Response.json(
+        { error: "batch_not_supported", message: BATCH_REFUSED_MESSAGE },
+        { status: BAD_REQUEST_STATUS },
       );
     }
     const session: PartnerSession = {

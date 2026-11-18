@@ -1,4 +1,4 @@
-import type { Client } from "@modelcontextprotocol/client";
+import type { Client, ClientOptions } from "@modelcontextprotocol/client";
 import type { Logger } from "pino";
 
 import type { Environment } from "../../src/partner/types.ts";
@@ -29,6 +29,7 @@ export interface RunningApp {
   connect(
     environment: Environment,
     headers: Record<string, string>,
+    options?: ClientOptions,
   ): Promise<Client>;
   stop(): void;
 }

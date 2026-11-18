@@ -11,7 +11,11 @@ const SRC = new URL("../src/", import.meta.url).pathname;
 const TOOL_NAME = /\b[a-z]+(?:_[a-z]+)+\b/g;
 const OPERATION_ID = /\b(?:GET|POST|PUT|PATCH|DELETE) \/v3\/[\w/{}-]*[\w/}]/g;
 // Snake_case words in the code that name neither a tool nor a prompt: JSON error codes of the HTTP endpoint.
-const NOT_TOOL_NAMES = ["missing_credentials", "internal_error"];
+const NOT_TOOL_NAMES = [
+  "missing_credentials",
+  "batch_not_supported",
+  "internal_error",
+];
 
 const productionSources = await Promise.all(
   [...new Glob("**/*.ts").scanSync({ cwd: SRC })]

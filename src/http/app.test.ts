@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 
 import type { Client } from "@modelcontextprotocol/client";
+import { DEFAULT_MAX_REQUEST_BODY_SIZE } from "@modelcontextprotocol/server";
 
 import { callTool } from "../../test/support/call-tool.ts";
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
@@ -21,6 +22,12 @@ const HEADERS = {
   "x-api-key": API_KEY,
   "x-api-secret": SECRET,
   "x-company-id": "44",
+};
+const LEGACY_POST_HEADERS = {
+  ...HEADERS,
+  "content-type": "application/json",
+  accept: "application/json, text/event-stream",
+  "mcp-protocol-version": "2025-06-18",
 };
 
 let sandbox: FakeCresium;
@@ -91,6 +98,60 @@ describe("HTTP", () => {
     expect(response.status).toBe(401);
   });
 
+  it("[POST] /production - 400 - refuses a JSON-RPC batch before any tool runs", async () => {
+    const batch = [0, 1].map((id) => ({
+      jsonrpc: "2.0",
+      id,
+      method: "tools/call",
+      params: {
+        name: "read_api",
+        arguments: { operation: "GET /v3/balance/wallets" },
+      },
+    }));
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: LEGACY_POST_HEADERS,
+      body: JSON.stringify(batch),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "batch_not_supported",
+      message:
+        "Este servidor no acepta lotes de JSON-RPC: mandá un mensaje por pedido.",
+    });
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 413 - for a body over the SDK's size limit", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: LEGACY_POST_HEADERS,
+      body: `[${"0,".repeat(DEFAULT_MAX_REQUEST_BODY_SIZE / 2)}0]`,
+      // The server answers before reading the body, so the half-sent connection must not be reused.
+      keepalive: false,
+    });
+    expect(response.status).toBe(413);
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 200 - runs a single tools/call without a session", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: LEGACY_POST_HEADERS,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "read_api",
+          arguments: { operation: "GET /v3/balance/wallets" },
+        },
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(production.received).toHaveLength(1);
+  });
+
   it("[POST] /staging - 404 - only sandbox and production exist", async () => {
     const response = await fetch(`${app.url}/staging`, { method: "POST" });
     expect(response.status).toBe(404);
@@ -98,6 +159,23 @@ describe("HTTP", () => {
 });
 
 describe("MCP over /sandbox and /production", () => {
+  it.each([
+    ["legacy", {}],
+    ["modern", { versionNegotiation: { mode: { pin: "2026-07-28" } } }],
+  ] as const)(
+    "serves single requests on the %s protocol era",
+    async (era, options) => {
+      const client = await app.connect("sandbox", HEADERS, options);
+      expect(client.getProtocolEra()).toBe(era);
+      const result = await callTool(client, "read_api", {
+        operation: "GET /v3/balance/wallets",
+      });
+      expect(result).toEqual({ isError: false, text: '{"data":{"ok":true}}' });
+      expect(sandbox.received).toHaveLength(1);
+      await client.close();
+    },
+  );
+
   it("routes each path to its own Cresium API", async () => {
     const onSandbox = await app.connect("sandbox", HEADERS);
     const onProduction = await app.connect("production", HEADERS);

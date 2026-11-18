@@ -16,6 +16,7 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
+export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 
 export const USER_FACING_ERROR_NAME = "UserFacingError";

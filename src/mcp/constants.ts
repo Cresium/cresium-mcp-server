@@ -12,6 +12,9 @@ export const SERVER_INSTRUCTIONS = [
   "Para guías, autenticación y webhooks usá search_docs y read_doc_page.",
 ].join("\n");
 
+export const BATCH_REFUSED_MESSAGE =
+  "Este servidor no acepta lotes de JSON-RPC: mandá un mensaje por pedido.";
+
 export const PROMPTS: readonly PromptDef[] = [
   {
     name: "integrar_cvus_dedicados",
