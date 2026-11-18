@@ -17,7 +17,11 @@ import type {
 } from "../tools/types.ts";
 import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
-import { API_WRITE_UNKNOWN_OUTCOME, SEARCH_LIMIT } from "./constants.ts";
+import {
+  API_WRITE_UNKNOWN_OUTCOME,
+  SCHEMA_HINT,
+  SEARCH_LIMIT,
+} from "./constants.ts";
 import {
   accessOf,
   findOperation,
@@ -66,10 +70,17 @@ async function runOperation(
   operation: Operation,
   ctx: ToolContext,
 ): Promise<string> {
-  if (input.dryRun) {
-    return JSON.stringify(previewOperation(ctx.session, operation, input));
+  try {
+    if (input.dryRun) {
+      return JSON.stringify(previewOperation(ctx.session, operation, input));
+    }
+    return JSON.stringify(await callApi(ctx, operation, input));
+  } catch (error) {
+    if (error instanceof UserFacingError && error.schemaViolation) {
+      throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
+    }
+    throw error;
   }
-  return JSON.stringify(await callApi(ctx, operation, input));
 }
 
 const checkConnectionTool = defineTool({
