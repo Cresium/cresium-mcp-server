@@ -47,6 +47,9 @@ export const SEARCH_GOLDENS: readonly SearchGolden[] = [
   // Emisión y gestión de Pagos Únicos
   { phrase: "crear un pago único", top3: CREATE_PAYMENT },
   { phrase: "create a payment order", top3: CREATE_PAYMENT },
+  { phrase: "cobro", top3: CREATE_PAYMENT },
+  { phrase: "cobrar", top3: CREATE_PAYMENT },
+  { phrase: "link de cobro", top3: CREATE_PAYMENT },
   { phrase: "buscar pagos únicos", top3: FIND_PAYMENTS },
   { phrase: "buscar un pago por externalId", top3: FIND_PAYMENT },
   { phrase: "borrar un pago único", top3: DELETE_PAYMENT },
