@@ -19,9 +19,10 @@ import type { ToolDef } from "../tools/types.ts";
 import {
   BATCH_REFUSED_MESSAGE,
   PROMPTS,
+  READ_ONLY_NOTICE,
   SERVER_INSTRUCTIONS,
 } from "./constants.ts";
-import type { McpEndpointOptions } from "./types.ts";
+import type { AccessMode, McpEndpointOptions } from "./types.ts";
 
 // A write tool names the environment in its own description, because agents read it right before calling.
 function describeTool(tool: ToolDef, environmentLine: string): string {
@@ -43,12 +44,21 @@ function hintsOf(tool: ToolDef): ToolAnnotations {
   };
 }
 
-function registerPrompts(server: McpServer): void {
-  for (const { name, title, description, text } of PROMPTS) {
+function registerPrompts(server: McpServer, mode: AccessMode): void {
+  for (const { name, title, description, text, readOnlyText } of PROMPTS) {
+    const offered = mode === "read-only" ? readOnlyText : text;
+    if (!offered) continue;
     server.registerPrompt(name, { title, description }, () => ({
-      messages: [{ role: "user", content: { type: "text", text } }],
+      messages: [{ role: "user", content: { type: "text", text: offered } }],
     }));
   }
+}
+
+// What a tool declares about its effect decides, never its name, so a new write tool is left out by default.
+function toolsFor(options: McpEndpointOptions): readonly ToolDef[] {
+  return options.mode === "read-only"
+    ? options.tools.filter(({ access }) => access === "read")
+    : options.tools;
 }
 
 function buildMcpServer(
@@ -56,20 +66,21 @@ function buildMcpServer(
   session: PartnerSession,
 ): McpServer {
   const environmentLine = connectedTo(session.environment);
+  const notice = options.mode === "read-only" ? ` ${READ_ONLY_NOTICE}` : "";
   const server = new McpServer(SERVER_INFO, {
     capabilities: {
       tools: { listChanged: false },
       prompts: { listChanged: false },
     },
-    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}\n${SERVER_INSTRUCTIONS}`,
+    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}${notice}\n${SERVER_INSTRUCTIONS}`,
   });
-  registerPrompts(server);
+  registerPrompts(server, options.mode);
   const logger = options.logger.child({
     environment: session.environment,
     companyId: session.credentials.companyId,
     apiKeyMasked: maskApiKey(session.credentials.apiKey),
   });
-  for (const tool of options.tools) {
+  for (const tool of toolsFor(options)) {
     server.registerTool(
       tool.name,
       {

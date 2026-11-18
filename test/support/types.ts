@@ -23,11 +23,14 @@ export interface FakeCresium {
   stop(): Promise<void>;
 }
 
+/** A path the app serves MCP on: an environment, or its read-only variant. */
+export type Route = Environment | `${Environment}/read-only`;
+
 export interface RunningApp {
   readonly url: string;
   readonly logLines: string[];
   connect(
-    environment: Environment,
+    route: Route,
     headers: Record<string, string>,
     options?: ClientOptions,
   ): Promise<Client>;

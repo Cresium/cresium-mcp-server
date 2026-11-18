@@ -1,5 +1,16 @@
 import type { PromptDef } from "./types.ts";
 
+export const ACCESS_MODES = ["full", "read-only"] as const;
+
+/** Appended to the environment's path: the default routes have none. */
+export const MODE_PATH_SUFFIX = {
+  full: "",
+  "read-only": "/read-only",
+} as const satisfies Record<(typeof ACCESS_MODES)[number], string>;
+
+export const READ_ONLY_NOTICE =
+  "Conexión de solo lectura: no ofrece tools de escritura, así que ignorá lo que estas instrucciones dicen sobre escribir; para escribir, conectate a la misma URL sin /read-only.";
+
 export const SERVER_INSTRUCTIONS = [
   "Flujo recomendado:",
   "1. check_connection al empezar y cuando una tool devuelva 401.",
@@ -14,6 +25,21 @@ export const SERVER_INSTRUCTIONS = [
 
 export const BATCH_REFUSED_MESSAGE =
   "Este servidor no acepta lotes de JSON-RPC: mandá un mensaje por pedido.";
+
+function debugSignatureText(tools: string): string {
+  return [
+    'Mi código recibe "Invalid signature" de la API de Cresium. Ayudame a encontrar la diferencia:',
+    "1. Corré check_connection para confirmar que mis credenciales funcionan desde acá.",
+    "2. Pedime lo que usa mi código para firmar: kind (request o webhook), timestamp (x-timestamp), método, url, body crudo y la firma (x-signature).",
+    "3. Corré diagnose_signature con esos valores. Si encuentra la causa, mostrámela y corregí mi código.",
+    `4. Si no encuentra una causa, pedime también la operación y los parámetros, ejecutala con dryRun: true (${tools}) y compará signedText con mi texto, parte por parte:`,
+    "   - timestamp: el mismo valor que el header x-timestamp, en ISO 8601 y reciente (la nota del dry run dice el margen);",
+    "   - método en mayúsculas;",
+    "   - path con query string, codificado exactamente como en signedText (las listas van como nombre%5B%5D=valor; por ejemplo types%5B%5D=DEPOSIT);",
+    "   - body: el JSON compacto que se envía, con los tipos del schema (los números como números), o vacío si no hay body.",
+    "5. Mostrame la diferencia y corregí mi código.",
+  ].join("\n");
+}
 
 export const PROMPTS: readonly PromptDef[] = [
   {
@@ -31,23 +57,14 @@ export const PROMPTS: readonly PromptDef[] = [
       "6. Escribí en mi proyecto, en el lenguaje que ya uso, el cliente que firma cada pedido y el handler del webhook de depósito. Para la firma, compará tu texto a firmar con el campo signedText que devuelve write_api con dryRun: true.",
       "7. Decime qué falta para pasar a producción.",
     ].join("\n"),
+    readOnlyText: null,
   },
   {
     name: "depurar_firma",
     title: 'Depurar un "Invalid signature"',
     description:
       "Diagnostica la firma del código del usuario con diagnose_signature y, si hace falta, la compara con la que firma este servidor.",
-    text: [
-      'Mi código recibe "Invalid signature" de la API de Cresium. Ayudame a encontrar la diferencia:',
-      "1. Corré check_connection para confirmar que mis credenciales funcionan desde acá.",
-      "2. Pedime lo que usa mi código para firmar: kind (request o webhook), timestamp (x-timestamp), método, url, body crudo y la firma (x-signature).",
-      "3. Corré diagnose_signature con esos valores. Si encuentra la causa, mostrámela y corregí mi código.",
-      "4. Si no encuentra una causa, pedime también la operación y los parámetros, ejecutala con dryRun: true (read_api o write_api) y compará signedText con mi texto, parte por parte:",
-      "   - timestamp: el mismo valor que el header x-timestamp, en ISO 8601 y reciente (la nota del dry run dice el margen);",
-      "   - método en mayúsculas;",
-      "   - path con query string, codificado exactamente como en signedText (las listas van como nombre%5B%5D=valor; por ejemplo types%5B%5D=DEPOSIT);",
-      "   - body: el JSON compacto que se envía, con los tipos del schema (los números como números), o vacío si no hay body.",
-      "5. Mostrame la diferencia y corregí mi código.",
-    ].join("\n"),
+    text: debugSignatureText("read_api o write_api"),
+    readOnlyText: debugSignatureText("read_api"),
   },
 ];
