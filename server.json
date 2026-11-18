@@ -1,0 +1,62 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "app.cresium/mcp",
+  "title": "Cresium",
+  "description": "Cresium V3 Partner API and docs for AI agents: CVUs, payments, transfers and balances.",
+  "version": "3.0.0",
+  "websiteUrl": "https://docs.cresium.com",
+  "repository": {
+    "url": "https://github.com/Cresium/cresium-mcp-server",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.cresium.app/sandbox",
+      "headers": [
+        {
+          "name": "x-api-key",
+          "description": "Sandbox API key from the Cresium Dashboard.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "x-api-secret",
+          "description": "Sandbox API secret from the Cresium Dashboard.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "x-company-id",
+          "description": "Your Cresium company ID (a number).",
+          "isRequired": true,
+          "isSecret": false
+        }
+      ]
+    },
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.cresium.app/production",
+      "headers": [
+        {
+          "name": "x-api-key",
+          "description": "Production API key from the Cresium Dashboard.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "x-api-secret",
+          "description": "Production API secret from the Cresium Dashboard.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "x-company-id",
+          "description": "Your Cresium company ID (a number).",
+          "isRequired": true,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
