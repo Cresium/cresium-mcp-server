@@ -1,27 +1,26 @@
 import { createHash } from "node:crypto";
 
-import { toCresiumRequest } from "../cresium/request.ts";
+import type { PartnerSession } from "../partner/types.ts";
 import type { ToolContext } from "../tools/types.ts";
-import { assertSucceeded, sendRequest } from "./call.ts";
+import { callApi } from "./call.ts";
 import {
   CONNECTION_CACHE_TTL_MS,
   CONNECTION_CHECK_OPERATION,
 } from "./constants.ts";
 import { findOperation } from "./operations.ts";
+import { NO_OPERATION_INPUT } from "./schema.ts";
 import type { ConnectionGuard } from "./types.ts";
 
 export async function checkConnection(ctx: ToolContext): Promise<void> {
-  const operation = findOperation(CONNECTION_CHECK_OPERATION);
-  const request = toCresiumRequest(operation, { pathParams: {}, query: {} });
-  const response = await sendRequest(request, operation, ctx);
-  assertSucceeded(response, operation, ctx.session);
+  await callApi(
+    ctx,
+    findOperation(CONNECTION_CHECK_OPERATION),
+    NO_OPERATION_INPUT,
+  );
 }
 
 /** One-way key, so the cache never holds the secret and a right key with a wrong secret never matches. */
-function fingerprintOf({
-  environment,
-  credentials,
-}: ToolContext["session"]): string {
+function fingerprintOf({ environment, credentials }: PartnerSession): string {
   const { apiKey, companyId, secret } = credentials;
   return createHash("sha256")
     .update(`${environment}|${apiKey}|${companyId}|${secret}`)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { findOperation } from "../api/operations.ts";
-import { ToolError } from "../tools/errors.ts";
+import { UserFacingError } from "../errors.ts";
 import { toCresiumRequest } from "./request.ts";
 
 const NO_PARAMS = { pathParams: {}, query: {} };
@@ -54,7 +54,7 @@ describe("toCresiumRequest", () => {
           ...NO_PARAMS,
           pathParams: { id: value },
         });
-      expect(build).toThrow(ToolError);
+      expect(build).toThrow(UserFacingError);
     });
   });
 
@@ -87,7 +87,7 @@ describe("toCresiumRequest", () => {
           ...NO_PARAMS,
           body: { cvu: "000", amount: 1500, ammount: 1 },
         });
-      expect(build).toThrow(ToolError);
+      expect(build).toThrow(UserFacingError);
       expect(build).toThrow(/no conoce ammount\. Campos válidos: .*amount/);
     });
 

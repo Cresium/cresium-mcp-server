@@ -1,9 +1,14 @@
 import { Ajv } from "ajv";
 
-import type { JsonSchema, Operation } from "../api/types.ts";
-import { ToolError } from "../tools/errors.ts";
+import { UserFacingError } from "../errors.ts";
 import { UNSAFE_PATH_VALUES } from "./constants.ts";
-import type { CresiumRequest, OperationCall, QueryValue } from "./types.ts";
+import type {
+  CresiumRequest,
+  JsonSchema,
+  Operation,
+  OperationCall,
+  QueryValue,
+} from "./types.ts";
 
 // Fastify 4's default Ajv options, which mage uses. Fastify validates (and mutates) the body before mage
 // checks the HMAC against JSON.stringify(request.body), so the body must be signed after the same mutation:
@@ -34,7 +39,7 @@ function assertKnownFields(
   );
   if (unknownFields.length === 0) return;
   const knownFields = Object.keys(properties).join(", ");
-  throw new ToolError(
+  throw new UserFacingError(
     `Body inválido para ${operation.id}: la API no conoce ${unknownFields.join(", ")}. Campos válidos: ${knownFields}.`,
   );
 }
@@ -42,12 +47,12 @@ function assertKnownFields(
 function toBody(operation: Operation, body: unknown): unknown {
   if (!body) return;
   if (!operation.body) {
-    throw new ToolError(`${operation.id} no recibe body.`);
+    throw new UserFacingError(`${operation.id} no recibe body.`);
   }
   const prepared = structuredClone(body);
   const validate = ajv.compile(operation.body);
   if (!validate(prepared)) {
-    throw new ToolError(
+    throw new UserFacingError(
       `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}. Revisá el schema con search_api.`,
     );
   }
@@ -93,7 +98,7 @@ function toUrl(
       : []),
   ];
   if (problems.length > 0) {
-    throw new ToolError(
+    throw new UserFacingError(
       `Parámetros inválidos para ${operation.id}: ${problems.join("; ")}.`,
     );
   }
@@ -107,7 +112,7 @@ function toUrl(
   return search ? `${path}?${search}` : path;
 }
 
-/** The request exactly as mage will parse and verify it, or a ToolError saying why mage would reject the call. */
+/** The request exactly as mage will parse and verify it, or a UserFacingError saying why mage would reject the call. */
 export function toCresiumRequest(
   operation: Operation,
   call: OperationCall,

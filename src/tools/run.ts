@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 
+import { UserFacingError } from "../errors.ts";
 import { rejectOnAbort } from "./abort.ts";
-import { ToolError } from "./errors.ts";
 import type { ToolCall } from "./types.ts";
 
 function errorResult(text: string): CallToolResult {
@@ -38,7 +38,7 @@ async function execute(
     ]);
     return { content: [{ type: "text", text }] };
   } catch (error) {
-    if (error instanceof ToolError) {
+    if (error instanceof UserFacingError) {
       return errorResult(
         error.outcomeUnknown ? withAdvice(call, error.message) : error.message,
       );

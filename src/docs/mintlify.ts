@@ -4,7 +4,7 @@ import {
 } from "@modelcontextprotocol/client";
 
 import { SERVER_INFO } from "../constants.ts";
-import { ToolError } from "../tools/errors.ts";
+import { UserFacingError } from "../errors.ts";
 import { BLOCK_SEPARATOR } from "./constants.ts";
 import type { MintlifyCall } from "./types.ts";
 
@@ -34,7 +34,7 @@ export async function callMintlify(
     );
     const blocks = textBlocksOf(result.content);
     if (result.isError === true) {
-      throw new ToolError(
+      throw new UserFacingError(
         `La docu respondió con un error: ${blocks.join(BLOCK_SEPARATOR)}`,
       );
     }
@@ -60,7 +60,7 @@ export async function fetchDocPage(
     redirect: "manual",
   });
   if (!response.ok) {
-    throw new ToolError(
+    throw new UserFacingError(
       `No encontré la página "${path}" (${response.status}). Usá search_docs para encontrar el path correcto.`,
     );
   }

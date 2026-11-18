@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
-import { ToolError } from "../tools/errors.ts";
+import { UserFacingError } from "../errors.ts";
 import { MINTLIFY_TOOLS } from "./constants.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
 
@@ -60,13 +60,13 @@ describe("callMintlify", () => {
     expect(blocks).toEqual(["resultados para webhook"]);
   });
 
-  it("turns a Mintlify tool error into a ToolError", async () => {
+  it("turns a Mintlify tool error into a UserFacingError", async () => {
     const error: unknown = await callMintlify(
       docsUrl,
       { tool: MINTLIFY_TOOLS.search, args: { query: "boom" } },
       signal,
     ).catch((thrown: unknown) => thrown);
-    expect(error).toBeInstanceOf(ToolError);
+    expect(error).toBeInstanceOf(UserFacingError);
   });
 });
 
@@ -80,11 +80,11 @@ describe("fetchDocPage", () => {
     expect(await fetchDocPage(docsUrl, path, signal)).toBe("# Sandbox");
   });
 
-  it("throws a ToolError that points to search_docs for a missing page", async () => {
+  it("throws a UserFacingError that points to search_docs for a missing page", async () => {
     const error: unknown = await fetchDocPage(docsUrl, "nope", signal).catch(
       (thrown: unknown) => thrown,
     );
-    expect(error).toBeInstanceOf(ToolError);
+    expect(error).toBeInstanceOf(UserFacingError);
     expect(String(error)).toContain("search_docs");
   });
 
@@ -92,7 +92,7 @@ describe("fetchDocPage", () => {
     const error: unknown = await fetchDocPage(docsUrl, "moved", signal).catch(
       (thrown: unknown) => thrown,
     );
-    expect(error).toBeInstanceOf(ToolError);
+    expect(error).toBeInstanceOf(UserFacingError);
     expect(otherHostHits).toBe(0);
   });
 });

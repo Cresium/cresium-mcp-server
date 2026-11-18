@@ -16,9 +16,9 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
-export const CLIENT_ERROR_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
-export const SERVER_ERROR_STATUS = 500;
+
+export const USER_FACING_ERROR_NAME = "UserFacingError";
 
 /** How this server names itself to MCP peers (clients and the docs server). */
 export const SERVER_INFO = {

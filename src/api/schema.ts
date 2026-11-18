@@ -1,6 +1,5 @@
 import * as z from "zod";
 
-/** What an agent passes to run an operation; OperationCall and QueryValue are derived from it. */
 export const operationCallSchema = z.object({
   pathParams: z
     .record(z.string(), z.union([z.string(), z.number()]))
@@ -24,3 +23,5 @@ export const operationCallSchema = z.object({
     .optional()
     .describe("Body JSON del pedido, según el schema que devuelve search_api."),
 });
+
+export const NO_OPERATION_INPUT = operationCallSchema.parse({});

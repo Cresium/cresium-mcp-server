@@ -1,15 +1,11 @@
 import * as z from "zod";
 
-import { previewRequest } from "../cresium/client.ts";
-import { DRY_RUN_NOTE } from "../cresium/constants.ts";
-import { toCresiumRequest } from "../cresium/request.ts";
-import { operationCallSchema } from "../cresium/schema.ts";
-import type { CresiumRequest } from "../cresium/types.ts";
+import { previewOperation } from "../cresium/operation.ts";
+import type { Operation } from "../cresium/types.ts";
+import { UserFacingError } from "../errors.ts";
 import { maskApiKey } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
-import type { PartnerSession } from "../partner/types.ts";
 import { defineTool } from "../tools/define.ts";
-import { ToolError } from "../tools/errors.ts";
 import type {
   ToolAccess,
   ToolContext,
@@ -17,11 +13,16 @@ import type {
   ToolEffect,
   ToolName,
 } from "../tools/types.ts";
-import { accessOf, assertSucceeded, sendRequest, toJsonText } from "./call.ts";
+import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
 import { API_WRITE_UNKNOWN_OUTCOME, SEARCH_LIMIT } from "./constants.ts";
-import { findOperation, OPERATIONS, searchOperations } from "./operations.ts";
-import type { Operation } from "./types.ts";
+import {
+  accessOf,
+  findOperation,
+  OPERATIONS,
+  searchOperations,
+} from "./operations.ts";
+import { operationCallSchema } from "./schema.ts";
 
 const callInput = operationCallSchema.extend({
   operation: z
@@ -58,26 +59,15 @@ function describeOperation(operation: Operation): unknown {
   };
 }
 
-function dryRunText(request: CresiumRequest, session: PartnerSession): string {
-  const preview = previewRequest(session.apiBaseUrl, request);
-  return toJsonText({
-    dryRun: true,
-    environment: session.environment,
-    ...preview,
-    note: DRY_RUN_NOTE,
-  });
-}
-
-async function callOperation(
+async function runOperation(
   input: ApiCallRequest,
   operation: Operation,
   ctx: ToolContext,
 ): Promise<string> {
-  const request = toCresiumRequest(operation, input);
-  if (input.dryRun) return dryRunText(request, ctx.session);
-  const response = await sendRequest(request, operation, ctx);
-  assertSucceeded(response, operation, ctx.session);
-  return toJsonText(response.body);
+  if (input.dryRun) {
+    return JSON.stringify(previewOperation(ctx.session, operation, input));
+  }
+  return JSON.stringify(await callApi(ctx, operation, input));
 }
 
 const checkConnectionTool = defineTool({
@@ -107,7 +97,9 @@ const searchApiTool = defineTool({
   access: "read",
   run: ({ query }) => {
     if (query.trim() === "") {
-      return Promise.resolve(toJsonText(OPERATIONS.map(summarizeOperation)));
+      return Promise.resolve(
+        JSON.stringify(OPERATIONS.map(summarizeOperation)),
+      );
     }
     const found = searchOperations(query, SEARCH_LIMIT);
     if (found.length === 0) {
@@ -115,7 +107,7 @@ const searchApiTool = defineTool({
         `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas.`,
       );
     }
-    return Promise.resolve(toJsonText(found.map(describeOperation)));
+    return Promise.resolve(JSON.stringify(found.map(describeOperation)));
   },
 });
 
@@ -157,9 +149,9 @@ function createCallTool(access: ToolAccess): ToolDef {
     run: async (input, ctx) => {
       const operation = findOperation(input.operation);
       if (accessOf(operation) !== access) {
-        throw new ToolError(`${operation.id} ${wrongAccess}`);
+        throw new UserFacingError(`${operation.id} ${wrongAccess}`);
       }
-      return await callOperation(input, operation, ctx);
+      return await runOperation(input, operation, ctx);
     },
   });
 }

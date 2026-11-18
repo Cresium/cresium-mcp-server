@@ -4,8 +4,8 @@ import type { Logger } from "pino";
 import * as z from "zod";
 
 import { captureLogger } from "../../test/support/capture-logger.ts";
+import { UserFacingError } from "../errors.ts";
 import { defineTool } from "./define.ts";
-import { ToolError } from "./errors.ts";
 import { runTool } from "./run.ts";
 import type { ToolCall, ToolDef } from "./types.ts";
 
@@ -74,9 +74,9 @@ describe("runTool", () => {
     expect(errorText(result)).toStartWith("Input inválido:");
   });
 
-  it("shows a ToolError's message to the caller", async () => {
+  it("shows a UserFacingError's message to the caller", async () => {
     const result = await runTool(
-      call(failing(new ToolError("Una sola sentencia.")), {}),
+      call(failing(new UserFacingError("Una sola sentencia.")), {}),
       1000,
     );
     expect(result).toEqual({
@@ -174,8 +174,8 @@ describe("runTool", () => {
     expect(errorText(result)).toContain(WRITE_ADVICE);
   });
 
-  it("adds a write's advice to a ToolError that says the outcome is unknown, and only to that one", async () => {
-    const failingWrite = (error: ToolError): ToolDef =>
+  it("adds a write's advice to a UserFacingError that says the outcome is unknown, and only to that one", async () => {
+    const failingWrite = (error: UserFacingError): ToolDef =>
       defineTool({
         name: "test_write",
         description: "fails",
@@ -185,11 +185,14 @@ describe("runTool", () => {
         run: () => Promise.reject(error),
       });
     const unknown = await runTool(
-      call(failingWrite(new ToolError("Falló.", { outcomeUnknown: true })), {}),
+      call(
+        failingWrite(new UserFacingError("Falló.", { outcomeUnknown: true })),
+        {},
+      ),
       1000,
     );
     const known = await runTool(
-      call(failingWrite(new ToolError("Falló.")), {}),
+      call(failingWrite(new UserFacingError("Falló.")), {}),
       1000,
     );
     expect(errorText(unknown)).toBe(`Falló. ${WRITE_ADVICE}`);

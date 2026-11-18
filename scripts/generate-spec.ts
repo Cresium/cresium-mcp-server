@@ -4,8 +4,12 @@
 // so it must run without installed dependencies (no `bun install`, no prettier).
 import { $ } from "bun";
 
-import { HTTP_METHODS } from "../src/api/constants.ts";
-import type { HttpMethod, JsonSchema, Operation } from "../src/api/types.ts";
+import { HTTP_METHODS } from "../src/cresium/constants.ts";
+import type {
+  HttpMethod,
+  JsonSchema,
+  Operation,
+} from "../src/cresium/types.ts";
 
 const OUTPUT_PATH = new URL("../src/api/operations.json", import.meta.url);
 // The server runs remotely, so it cannot read files from the partner's disk to upload them.

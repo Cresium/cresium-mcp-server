@@ -46,7 +46,6 @@ export function previewRequest(
   return { method, url: `${baseUrl}${url}`, body: body ?? null, signedText };
 }
 
-/** Sends one signed V3 request and returns its status and body, whatever the status. */
 export async function callCresium(
   { baseUrl, credentials }: CresiumTarget,
   { method, url, body }: CresiumRequest,

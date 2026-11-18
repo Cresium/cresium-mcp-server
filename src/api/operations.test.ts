@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
+import { UserFacingError } from "../errors.ts";
 import { PROMPTS, SERVER_INSTRUCTIONS } from "../mcp/constants.ts";
-import { ToolError } from "../tools/errors.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
   CONNECTION_CHECK_OPERATION,
@@ -104,8 +104,8 @@ describe("searchOperations", () => {
 });
 
 describe("findOperation", () => {
-  it("throws a ToolError that points to search_api for an unknown id", () => {
-    expect(() => findOperation("GET /v3/nope")).toThrow(ToolError);
+  it("throws a UserFacingError that points to search_api for an unknown id", () => {
+    expect(() => findOperation("GET /v3/nope")).toThrow(UserFacingError);
     expect(() => findOperation("GET /v3/nope")).toThrow(/search_api/);
   });
 });

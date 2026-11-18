@@ -1,14 +1,16 @@
 import * as z from "zod";
 
-import { ToolError } from "../tools/errors.ts";
+import { HTTP_METHODS } from "../cresium/constants.ts";
+import type { Operation } from "../cresium/types.ts";
+import { UserFacingError } from "../errors.ts";
+import type { ToolAccess } from "../tools/types.ts";
 import {
   DESCRIPTION_MATCH_SCORE,
-  HTTP_METHODS,
   SEARCH_SYNONYMS,
   TITLE_MATCH_SCORE,
 } from "./constants.ts";
 import operationsJson from "./operations.json" with { type: "json" };
-import type { Operation, SearchableOperation } from "./types.ts";
+import type { SearchableOperation } from "./types.ts";
 
 const operationSchema: z.ZodType<Operation> = z.object({
   id: z.string(),
@@ -38,10 +40,14 @@ const OPERATIONS_BY_ID: ReadonlyMap<string, Operation> = new Map(
   OPERATIONS.map((operation) => [operation.id, operation]),
 );
 
+export function accessOf(operation: Operation): ToolAccess {
+  return operation.method === "GET" ? "read" : "write";
+}
+
 export function findOperation(id: string): Operation {
   const operation = OPERATIONS_BY_ID.get(id.trim());
   if (!operation) {
-    throw new ToolError(
+    throw new UserFacingError(
       `No existe la operación "${id}". Usá search_api para ver los ids válidos, por ejemplo "GET /v3/balance/".`,
     );
   }

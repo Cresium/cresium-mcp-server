@@ -3,9 +3,9 @@ import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
 import { DOCS_FEEDBACK_UNKNOWN_OUTCOME } from "../docs/constants.ts";
 import { createDocsTools } from "../docs/tools.ts";
+import { UserFacingError } from "../errors.ts";
 import { createLogger } from "../logger.ts";
 import type { Environment, PartnerCredentials } from "../partner/types.ts";
-import { ToolError } from "../tools/errors.ts";
 import { runTool } from "../tools/run.ts";
 import type { ToolContext, ToolDef } from "../tools/types.ts";
 import { createConnectionGuard } from "./connection.ts";
@@ -97,7 +97,7 @@ describe("docs tools connection guard", () => {
       const error = await docsTool(name)
         .run(input, contextFor(VALID))
         .catch((caught: unknown) => caught);
-      expect(error).toBeInstanceOf(ToolError);
+      expect(error).toBeInstanceOf(UserFacingError);
       expect(error).toHaveProperty(
         "message",
         expect.stringContaining("x-api-secret"),
@@ -139,7 +139,7 @@ describe("docs tools connection guard", () => {
       ...VALID,
       secret: "guess",
     }).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(ToolError);
+    expect(error).toBeInstanceOf(UserFacingError);
     expect(error).toHaveProperty(
       "message",
       expect.stringContaining("x-api-secret"),

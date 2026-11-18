@@ -1,21 +1,53 @@
-import type { z } from "zod";
+import type {
+  Environment,
+  PartnerCredentials,
+  PartnerSession,
+} from "../partner/types.ts";
+import type { HTTP_METHODS } from "./constants.ts";
 
-import type { HttpMethod } from "../api/types.ts";
-import type { PartnerCredentials } from "../partner/types.ts";
-import type { operationCallSchema } from "./schema.ts";
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+export type JsonSchema = Readonly<Record<string, unknown>>;
+
+export interface OperationParameter {
+  readonly name: string;
+  readonly in: "path" | "query";
+  readonly required: boolean;
+  readonly description: string;
+  readonly schema: unknown;
+}
+
+/** One V3 endpoint, trimmed from Cresium/bible's OpenAPI by scripts/generate-spec.ts. */
+export interface Operation {
+  /** `METHOD /path`, e.g. `GET /v3/balance/`. Agents pass it back to the read/write tools. */
+  readonly id: string;
+  readonly method: HttpMethod;
+  readonly path: string;
+  readonly summary: string;
+  readonly description: string;
+  readonly tags: readonly string[];
+  readonly parameters: readonly OperationParameter[];
+  readonly body: JsonSchema | null;
+}
+
+export type QueryValue =
+  string | number | boolean | readonly (string | number)[];
+
+/** What a caller supplies to run an operation: values for its path placeholders, its query and its body. */
+export interface OperationCall {
+  readonly pathParams: Readonly<Record<string, string | number>>;
+  readonly query: Readonly<Record<string, QueryValue>>;
+  readonly body?:
+    Readonly<Record<string, unknown>> | readonly unknown[] | undefined;
+}
 
 export interface SignedFields {
   readonly timestamp: string;
   readonly method: HttpMethod;
   /** Path plus query string, exactly as sent. */
   readonly url: string;
-  /** JSON body as sent, or "" when there is none. */
   readonly body: string;
 }
-
-export type OperationCall = z.infer<typeof operationCallSchema>;
-
-export type QueryValue = OperationCall["query"][string];
 
 export interface CresiumRequest {
   readonly method: HttpMethod;
@@ -25,7 +57,6 @@ export interface CresiumRequest {
 
 export interface CresiumResponse {
   readonly status: number;
-  /** Parsed JSON, or the raw text when the API did not answer JSON. */
   readonly body: unknown;
 }
 
@@ -37,10 +68,28 @@ export interface CresiumTarget {
 /** A request as it would be sent, without credentials or a signature. */
 export interface CresiumRequestPreview {
   readonly method: HttpMethod;
-  /** Base URL plus path and query string. */
   readonly url: string;
-  /** JSON body after mage's coercion, or null when there is none. */
   readonly body: unknown;
-  /** The text to sign with HMAC-SHA256, with a placeholder where the timestamp goes. */
   readonly signedText: string;
+}
+
+/** What `callOperation` shows a dry run: the preview plus how to sign it. */
+export interface CresiumDryRun extends CresiumRequestPreview {
+  readonly dryRun: true;
+  readonly environment: Environment;
+  readonly note: string;
+}
+
+/** Who a call is made as, how to stop it, and where to report how it went. */
+export interface CallContext {
+  readonly session: PartnerSession;
+  readonly signal: AbortSignal;
+  readonly onCall: (record: CallRecord) => void;
+}
+
+/** One request to the API, reported once it ends: `status` is "failed" when no answer arrived. */
+export interface CallRecord {
+  readonly operation: string;
+  readonly status: number | "failed";
+  readonly durationMs: number;
 }
