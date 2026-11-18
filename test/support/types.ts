@@ -49,3 +49,10 @@ export interface ToolText {
   readonly isError: boolean;
   readonly text: string;
 }
+
+/** One partner phrasing and what `search_api` must answer for it. */
+export type SearchGolden = { readonly phrase: string } & (
+  | { readonly top3: string }
+  | { readonly none: true }
+  | { readonly notFirst: string }
+);
