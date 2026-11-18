@@ -18,6 +18,21 @@ const EXCLUDED_OPERATIONS: ReadonlySet<string> = new Set([
 ]);
 // Strips keys that only help humans render docs; they make the spec ~10x larger without telling an agent more.
 const DOC_ONLY_KEYS: ReadonlySet<string> = new Set(["example", "examples"]);
+// The server compiles each schema at startup and walks it for unknown body fields, and understands only anyOf.
+const UNSUPPORTED_SCHEMA_KEYS: ReadonlyMap<string, string> = new Map([
+  [
+    "$ref",
+    "a $ref; resolve schema references before generating the catalogue.",
+  ],
+  [
+    "allOf",
+    "allOf; teach the unknown-field check in src/cresium/request.ts to walk it before generating the catalogue.",
+  ],
+  [
+    "oneOf",
+    "oneOf; teach the unknown-field check in src/cresium/request.ts to walk it before generating the catalogue.",
+  ],
+]);
 
 interface OpenApiOperation {
   readonly summary?: string;
@@ -63,15 +78,13 @@ function toJsonSchema(value: unknown): JsonSchema | null {
     : null;
 }
 
-function assertNoReferences(schema: unknown, operationId: string): void {
+function assertSupported(schema: unknown, operationId: string): void {
   if (schema == null || typeof schema !== "object") return;
-  if ("$ref" in schema) {
-    throw new Error(
-      `${operationId} contains a $ref; resolve schema references before generating the catalogue.`,
-    );
+  for (const [key, problem] of UNSUPPORTED_SCHEMA_KEYS) {
+    if (key in schema) throw new Error(`${operationId} contains ${problem}`);
   }
   for (const value of Object.values(schema)) {
-    assertNoReferences(value, operationId);
+    assertSupported(value, operationId);
   }
 }
 
@@ -88,10 +101,10 @@ function toOperation(
       `${id} takes a non-JSON body; add it to EXCLUDED_OPERATIONS or teach the client to send it.`,
     );
   }
-  assertNoReferences(stripDocOnlyKeys(jsonBody?.schema), id);
+  assertSupported(stripDocOnlyKeys(jsonBody?.schema), id);
   for (const parameter of op.parameters ?? []) {
     if (parameter.in === "path" || parameter.in === "query") {
-      assertNoReferences(stripDocOnlyKeys(parameter.schema), id);
+      assertSupported(stripDocOnlyKeys(parameter.schema), id);
     }
   }
   return {
