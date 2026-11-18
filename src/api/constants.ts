@@ -79,3 +79,11 @@ export const API_WRITE_UNKNOWN_OUTCOME =
 export const SCHEMA_HINT = "Revisá el schema con search_api.";
 
 export const CONNECTION_CACHE_TTL_MS = 10 * 60_000;
+
+/** Starts the note that follows an answer when some `fields` paths matched nothing; the paths come after it. */
+export const UNMATCHED_FIELDS_NOTE =
+  "Nota: estos paths de fields no existen en ningún ítem y se ignoraron:";
+
+/** How to receive less from read_api once an answer was cut; the runner appends it to the cut note. */
+export const READ_API_NARROWING_ADVICE =
+  "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";

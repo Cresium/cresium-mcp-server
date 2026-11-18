@@ -19,6 +19,19 @@ export const LOG_LEVELS = [
 export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 
+/**
+ * The most bytes read from one upstream answer (Cresium's API or a docs page); past it the read stops.
+ * It is far above what any tool returns (MAX_RESULT_CHARS is at most about 200 KB as UTF-8), so a real
+ * answer is never refused, and small enough that a pod serving concurrent calls holds a few MiB, not a
+ * whole runaway body, in memory.
+ */
+export const MAX_UPSTREAM_BODY_BYTES = 2 * 1024 * 1024;
+
+export const BYTES_PER_MIB = 1024 * 1024;
+
+export const UPSTREAM_ANSWER_COMPRESSED =
+  "El servidor respondió comprimido aunque se le pidió sin comprimir, y la respuesta no se leyó: descomprimida podría ocupar mucho más que el máximo.";
+
 export const USER_FACING_ERROR_NAME = "UserFacingError";
 
 /** How this server names itself to MCP peers (clients and the docs server). */

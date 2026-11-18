@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { captureLogger } from "../../test/support/capture-logger.ts";
 import { UserFacingError } from "../errors.ts";
+import { DEFAULT_NARROWING_ADVICE, MAX_RESULT_CHARS } from "./constants.ts";
 import { defineTool } from "./define.ts";
 import { runTool } from "./run.ts";
 import type { RunOptions, ToolCall, ToolDef } from "./types.ts";
@@ -385,4 +386,49 @@ it("never starts a tool for an already cancelled request", async () => {
   );
   expect(errorText(result)).toBe("test_cancelled fue cancelada.");
   expect(runs).toBe(0);
+});
+
+describe("the result limit", () => {
+  const big = "x".repeat(MAX_RESULT_CHARS + 10);
+
+  function printing(text: string, narrowingAdvice?: string): ToolDef {
+    return defineTool({
+      name: "test_big",
+      title: "Prueba",
+      description: "big",
+      input: z.object({}),
+      access: "read",
+      ...(narrowingAdvice ? { narrowingAdvice } : {}),
+      run: () => Promise.resolve(text),
+    });
+  }
+
+  it("cuts a long result with the tool's own advice for narrowing it", async () => {
+    const result = await runTool(
+      call(printing(big, "Usá fields."), {}),
+      allowing(1000),
+    );
+    expect(result.isError).toBeUndefined();
+    const text = errorText(result);
+    expect(text.startsWith("x".repeat(MAX_RESULT_CHARS))).toBe(true);
+    expect(text).toContain("10 caracteres");
+    expect(text).toContain("Usá fields.");
+  });
+
+  it("falls back to a generic advice", async () => {
+    const result = await runTool(call(printing(big), {}), allowing(1000));
+    expect(errorText(result)).toContain(DEFAULT_NARROWING_ADVICE);
+  });
+
+  it("cuts a long error message too", async () => {
+    const tool = failing(new UserFacingError(big));
+    const result = await runTool(call(tool, {}), allowing(1000));
+    expect(result.isError).toBe(true);
+    expect(errorText(result).length).toBeLessThan(MAX_RESULT_CHARS + 500);
+  });
+
+  it("leaves a short result alone", async () => {
+    const result = await runTool(call(printing("ok"), {}), allowing(1000));
+    expect(errorText(result)).toBe("ok");
+  });
 });

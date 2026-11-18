@@ -1,6 +1,8 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 
 import { UserFacingError } from "../errors.ts";
+import { DEFAULT_NARROWING_ADVICE } from "./constants.ts";
+import { limitText } from "./limit.ts";
 import type { RunOptions, ToolCall } from "./types.ts";
 
 function rejectOnAbort(signal: AbortSignal): Promise<never> {
@@ -86,7 +88,17 @@ export async function runTool(
   options: RunOptions,
 ): Promise<CallToolResult> {
   const startedAt = performance.now();
-  const result = await execute(call, options);
+  const executed = await execute(call, options);
+  const advice = call.tool.narrowingAdvice ?? DEFAULT_NARROWING_ADVICE;
+  // Every tool's text, an error's included, goes out through this one cut.
+  const result: CallToolResult = {
+    ...executed,
+    content: executed.content.map((block) =>
+      block.type === "text"
+        ? { ...block, text: limitText(block.text, advice) }
+        : block,
+    ),
+  };
   call.context.logger.info(
     {
       tool: call.tool.name,

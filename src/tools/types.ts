@@ -35,6 +35,8 @@ export type ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> =
     /** What a client shows people instead of the name. */
     readonly title: string;
     readonly description: string;
+    /** Spanish: how to ask for less when the result was cut at the limit; a generic one when absent. */
+    readonly narrowingAdvice?: string;
     /** Runs only for a partner whose credentials Cresium accepts, for a tool that does not call the API itself. */
     readonly requiresVerifiedPartner?: true;
     readonly input: z.ZodObject<Shape>;

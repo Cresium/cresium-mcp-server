@@ -1,6 +1,12 @@
 import { createHmac } from "node:crypto";
 
-import { USER_AGENT } from "../constants.ts";
+import { fetchUncompressed, readTextWithin } from "../body.ts";
+import {
+  BYTES_PER_MIB,
+  MAX_UPSTREAM_BODY_BYTES,
+  USER_AGENT,
+} from "../constants.ts";
+import { UserFacingError } from "../errors.ts";
 import { MAGE_HEADERS, TIMESTAMP_PLACEHOLDER } from "./constants.ts";
 import type {
   CresiumRequest,
@@ -9,6 +15,11 @@ import type {
   CresiumTarget,
   SignedFields,
 } from "./types.ts";
+
+const ANSWER_LIMIT = `${MAX_UPSTREAM_BODY_BYTES / BYTES_PER_MIB} MiB`;
+const ANSWER_TOO_LARGE = `La respuesta de Cresium superó el máximo de ${ANSWER_LIMIT} y se dejó de leer. Pedí menos datos: una página más chica con pageSize y filtros.`;
+// A write was already sent when its answer proved too large to read, so the agent must not assume it failed.
+const WRITE_ANSWER_TOO_LARGE = `La escritura se envió, pero la respuesta de Cresium superó el máximo de ${ANSWER_LIMIT} y se dejó de leer.`;
 
 function toSignedText(fields: SignedFields): string {
   return `${fields.timestamp}|${fields.method}|${fields.url}|${fields.body}`;
@@ -63,7 +74,8 @@ export async function callCresium(
   const contentType: Record<string, string> = jsonBody
     ? { "content-type": "application/json" }
     : {};
-  const response = await fetch(`${baseUrl}${url}`, {
+  const hangUp = new AbortController();
+  const response = await fetchUncompressed(`${baseUrl}${url}`, {
     method,
     headers: {
       [MAGE_HEADERS.apiKey]: credentials.apiKey,
@@ -74,7 +86,13 @@ export async function callCresium(
       ...contentType,
     },
     ...(jsonBody ? { body: jsonBody } : {}),
-    signal,
+    signal: AbortSignal.any([signal, hangUp.signal]),
   });
-  return { status: response.status, body: parseBody(await response.text()) };
+  const text = await readTextWithin(response, MAX_UPSTREAM_BODY_BYTES, hangUp);
+  if (text == null) {
+    throw method === "GET"
+      ? new UserFacingError(ANSWER_TOO_LARGE)
+      : new UserFacingError(WRITE_ANSWER_TOO_LARGE, { outcomeUnknown: true });
+  }
+  return { status: response.status, body: parseBody(text) };
 }

@@ -42,7 +42,8 @@ async function send(
     status = response.status;
     return response;
   } catch (error) {
-    if (signal.aborted) throw error;
+    // A cancel or timeout keeps its own text, and so does an answer already judged too large to read.
+    if (signal.aborted || error instanceof UserFacingError) throw error;
     // A reset can arrive after mage processed the request.
     throw new UserFacingError(
       `${API_UNREACHABLE} ${connectedTo(session.environment)}`,

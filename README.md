@@ -89,6 +89,22 @@ Your agent's prompt menu offers two ready-made tasks:
 | `integrar_cvus_dedicados` | Runs the dedicated CVU flow in sandbox, then writes the signing client and the webhook in your project. |
 | `depurar_firma`           | Compares the request your code signs with the one this server signs and shows the difference.           |
 
+### Lean results
+
+`read_api` takes an optional `fields` list of dot paths, so a listing returns only what the agent reads. Paths apply to each item of the answer's `data` (a list, or an object holding one list, as `GET /v3/transaction/search` answers); pagination fields and the rest of the envelope are kept. A path may be nested (`counterparty.name`) or go through a list inside an item (`lines.qty`). A path that matches nothing in any item is named in a note after the JSON, never an error. An error answer from Cresium and a non-JSON answer are never changed. There is no switch: leave `fields` out for the full answer.
+
+```json
+{
+  "operation": "GET /v3/transaction/search",
+  "query": { "pageSize": 5 },
+  "fields": ["id", "amount", "counterparty.name"]
+}
+```
+
+### Size limits
+
+No tool returns more than 50,000 characters of text (about a third of the roughly 150,000 characters claude.ai accepts). A longer result, an error message included, is cut and ends with a note that says how many characters were dropped, that the text is incomplete (a cut JSON is no longer valid JSON) and how to ask for less: `pageSize`, filters and `fields` for `read_api`, a more specific search or one page for the docs. A full page of 100 transactions fits. The server also stops reading Cresium's answer, and a docs page, after 2 MiB: it hangs up and tells the agent, and for a write it says the write was sent and may have been applied. The 2 MiB are counted as the bytes arrive, so the server asks for uncompressed answers (`accept-encoding: identity`, and Bun's automatic decompression off); an answer compressed anyway is refused unread instead of being inflated. Both limits are constants (`MAX_RESULT_CHARS`, `MAX_UPSTREAM_BODY_BYTES`), not settings. Docs search and feedback go through Mintlify's own MCP client and are not bounded this way.
+
 ### Errors
 
 The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.

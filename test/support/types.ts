@@ -56,3 +56,23 @@ export type SearchGolden = { readonly phrase: string } & (
   | { readonly none: true }
   | { readonly notFirst: string }
 );
+
+export interface GzipUpstreamOptions {
+  readonly honorsAcceptEncoding: boolean;
+}
+
+export interface GzipUpstream {
+  readonly baseUrl: string;
+  readonly compressedBytes: number;
+  readonly smallAnswer: string;
+  /** The Accept-Encoding of every request it got; "" when absent. */
+  readonly acceptEncodings: readonly string[];
+  stop(): Promise<void>;
+}
+
+export interface EndlessUpstream {
+  readonly baseUrl: string;
+  /** What the server produced, and whether the client closed the connection. */
+  readonly state: { sentBytes: number; cancelled: boolean };
+  stop(): Promise<void>;
+}
