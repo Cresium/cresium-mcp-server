@@ -1,6 +1,7 @@
 import * as z from "zod";
 
 import {
+  CONFIRMATION_SECRET_MIN_LENGTH,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
   LOG_LEVELS,
   LOOPBACK_HOSTNAMES,
@@ -33,6 +34,11 @@ const envSchema = z.object({
     .default(DEFAULT_RATE_LIMIT_PER_MINUTE),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+  // An empty value (a Doppler secret left blank) counts as not set.
+  CONFIRMATION_SECRET: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(CONFIRMATION_SECRET_MIN_LENGTH).optional(),
+  ),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -53,5 +59,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     trustedProxyHops: e.TRUSTED_PROXY_HOPS,
     logLevel: e.LOG_LEVEL,
+    confirmationSecret: e.CONFIRMATION_SECRET,
   };
 }

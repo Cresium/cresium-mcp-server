@@ -46,6 +46,7 @@ export function createApp({ config, logger }: AppDeps): Express {
         apiBaseUrl: config.apiUrls[environment],
         timeoutMs: config.toolTimeoutMs,
         ensureConnected,
+        confirmationSecret: config.confirmationSecret,
         logger,
       });
       app.all(

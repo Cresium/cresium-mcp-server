@@ -1,4 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
+import { isInputRequiredResult } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "bun:test";
 import type { Logger } from "pino";
 import * as z from "zod";
@@ -14,6 +15,15 @@ const WRITE_ADVICE = "Verificá el estado antes de reintentar.";
 
 function allowing(timeoutMs: number): RunOptions {
   return { timeoutMs, ensureConnected: () => Promise.resolve() };
+}
+
+async function runSettled(
+  invocation: ToolCall,
+  options: RunOptions,
+): Promise<CallToolResult> {
+  const result = await runTool(invocation, options);
+  if (isInputRequiredResult(result)) throw new Error("asked for input");
+  return result;
 }
 
 function call(
@@ -64,7 +74,7 @@ function failing(error: Error): ToolDef {
 describe("runTool", () => {
   it("returns the tool's text as content and logs the call", async () => {
     const { lines, logger } = captureLogger();
-    const result = await runTool(
+    const result = await runSettled(
       call(echo, { text: "hola" }, logger),
       allowing(1000),
     );
@@ -79,13 +89,13 @@ describe("runTool", () => {
   });
 
   it("answers invalid input as an error result without running the tool", async () => {
-    const result = await runTool(call(echo, { text: 1 }), allowing(1000));
+    const result = await runSettled(call(echo, { text: 1 }), allowing(1000));
     expect(result.isError).toBe(true);
     expect(errorText(result)).toStartWith("Input inválido:");
   });
 
   it("shows a UserFacingError's message to the caller", async () => {
-    const result = await runTool(
+    const result = await runSettled(
       call(failing(new UserFacingError("Una sola sentencia.")), {}),
       allowing(1000),
     );
@@ -97,7 +107,7 @@ describe("runTool", () => {
 
   it("hides any other error from the caller, and logs it", async () => {
     const { lines, logger } = captureLogger();
-    const result = await runTool(
+    const result = await runSettled(
       call(failing(new Error("connect ECONNREFUSED 10.0.0.1")), {}, logger),
       allowing(1000),
     );
@@ -122,7 +132,7 @@ describe("runTool", () => {
       access: "read",
       run: () => new Promise<string>(() => undefined),
     });
-    const result = await runTool(call(slow, {}), allowing(50));
+    const result = await runSettled(call(slow, {}), allowing(50));
     expect(result).toEqual({
       isError: true,
       content: [
@@ -147,7 +157,7 @@ describe("runTool", () => {
         return new Promise<string>(() => undefined);
       },
     });
-    await runTool(call(watcher, {}), allowing(20));
+    await runSettled(call(watcher, {}), allowing(20));
     expect(seen?.aborted).toBe(true);
   });
 
@@ -163,7 +173,7 @@ describe("runTool", () => {
       unknownOutcomeAdvice: WRITE_ADVICE,
       run: () => new Promise<string>(() => undefined),
     });
-    const result = await runTool(call(slowWrite, {}), allowing(20));
+    const result = await runSettled(call(slowWrite, {}), allowing(20));
     expect(result.isError).toBe(true);
     expect(errorText(result)).toStartWith(
       "test_write superó el tiempo máximo de 0.02s.",
@@ -172,7 +182,7 @@ describe("runTool", () => {
   });
 
   it("warns that a write failing for an unknown reason may have happened", async () => {
-    const result = await runTool(
+    const result = await runSettled(
       call(
         defineTool({
           name: "test_write",
@@ -205,14 +215,14 @@ describe("runTool", () => {
         unknownOutcomeAdvice: WRITE_ADVICE,
         run: () => Promise.reject(error),
       });
-    const unknown = await runTool(
+    const unknown = await runSettled(
       call(
         failingWrite(new UserFacingError("Falló.", { outcomeUnknown: true })),
         {},
       ),
       allowing(1000),
     );
-    const known = await runTool(
+    const known = await runSettled(
       call(failingWrite(new UserFacingError("Falló.")), {}),
       allowing(1000),
     );
@@ -239,13 +249,13 @@ describe("runTool", () => {
       ensureConnected: () =>
         Promise.reject(new UserFacingError("Credenciales rechazadas.")),
     };
-    const refused = await runTool(call(guarded, {}), refusing);
+    const refused = await runSettled(call(guarded, {}), refusing);
     expect(refused).toEqual({
       isError: true,
       content: [{ type: "text", text: "Credenciales rechazadas." }],
     });
     expect(ran).toBe(false);
-    const accepted = await runTool(call(guarded, {}), allowing(1000));
+    const accepted = await runSettled(call(guarded, {}), allowing(1000));
     expect(errorText(accepted)).toBe("listo");
     expect(ran).toBe(true);
   });
@@ -256,12 +266,12 @@ describe("runTool", () => {
       ensureConnected: () =>
         Promise.reject(new UserFacingError("Credenciales rechazadas.")),
     };
-    const result = await runTool(call(echo, { text: "hola" }), refusing);
+    const result = await runSettled(call(echo, { text: "hola" }), refusing);
     expect(result.isError).toBeUndefined();
   });
 
   it("does not add the write warning to a read", async () => {
-    const result = await runTool(
+    const result = await runSettled(
       call(failing(new Error("connect ECONNREFUSED")), {}),
       allowing(1000),
     );
@@ -297,7 +307,7 @@ it.each(["read", "write"] as const)(
       },
     });
     const invocation = call(tool, {});
-    const result = runTool(
+    const result = runSettled(
       {
         ...invocation,
         context: { ...invocation.context, signal: controller.signal },
@@ -339,7 +349,7 @@ it("does not start a write after cancellation during the connection check", asyn
     },
   });
   const invocation = call(tool, {});
-  const result = runTool(
+  const result = runSettled(
     {
       ...invocation,
       context: { ...invocation.context, signal: controller.signal },
@@ -377,7 +387,7 @@ it("never starts a tool for an already cancelled request", async () => {
     },
   });
   const invocation = call(tool, {});
-  const result = await runTool(
+  const result = await runSettled(
     {
       ...invocation,
       context: { ...invocation.context, signal: AbortSignal.abort() },
@@ -404,7 +414,7 @@ describe("the result limit", () => {
   }
 
   it("cuts a long result with the tool's own advice for narrowing it", async () => {
-    const result = await runTool(
+    const result = await runSettled(
       call(printing(big, "Usá fields."), {}),
       allowing(1000),
     );
@@ -416,19 +426,19 @@ describe("the result limit", () => {
   });
 
   it("falls back to a generic advice", async () => {
-    const result = await runTool(call(printing(big), {}), allowing(1000));
+    const result = await runSettled(call(printing(big), {}), allowing(1000));
     expect(errorText(result)).toContain(DEFAULT_NARROWING_ADVICE);
   });
 
   it("cuts a long error message too", async () => {
     const tool = failing(new UserFacingError(big));
-    const result = await runTool(call(tool, {}), allowing(1000));
+    const result = await runSettled(call(tool, {}), allowing(1000));
     expect(result.isError).toBe(true);
     expect(errorText(result).length).toBeLessThan(MAX_RESULT_CHARS + 500);
   });
 
   it("leaves a short result alone", async () => {
-    const result = await runTool(call(printing("ok"), {}), allowing(1000));
+    const result = await runSettled(call(printing("ok"), {}), allowing(1000));
     expect(errorText(result)).toBe("ok");
   });
 });

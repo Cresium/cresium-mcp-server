@@ -11,6 +11,7 @@ const endpoint = createMcpEndpoint({
   environment: "sandbox",
   apiBaseUrl: "http://localhost:9",
   timeoutMs: 1000,
+  confirmationSecret: undefined,
   ensureConnected: () => Promise.resolve(),
   logger: captureLogger().logger,
 });

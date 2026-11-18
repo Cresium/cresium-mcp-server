@@ -16,6 +16,9 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
+/** The least a server secret may have: createRequestStateCodec refuses a key under 32 bytes. */
+export const CONFIRMATION_SECRET_MIN_LENGTH = 32;
+
 export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 export const TOO_MANY_REQUESTS_STATUS = 429;

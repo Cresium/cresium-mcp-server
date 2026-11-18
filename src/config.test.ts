@@ -59,4 +59,21 @@ describe("loadConfig", () => {
       }),
     ).toThrow(/https/);
   });
+
+  it("leaves the confirmation secret unset, and treats an empty one as unset", () => {
+    expect(loadConfig(VALID).confirmationSecret).toBeUndefined();
+    expect(
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: "" }).confirmationSecret,
+    ).toBeUndefined();
+  });
+
+  it("reads a confirmation secret of at least 32 characters and refuses a shorter one", () => {
+    const secret = "s".repeat(32);
+    expect(
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: secret }).confirmationSecret,
+    ).toBe(secret);
+    expect(() =>
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: "short" }),
+    ).toThrow(/CONFIRMATION_SECRET/);
+  });
 });

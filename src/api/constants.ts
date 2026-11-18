@@ -85,3 +85,6 @@ export const UNMATCHED_FIELDS_NOTE =
 /** How to receive less from read_api once an answer was cut; the runner appends it to the cut note. */
 export const READ_API_NARROWING_ADVICE =
   "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";
+
+/** The most characters of the URL or the body that a confirmation shows; a longer one is cut and its size said. */
+export const CONFIRMATION_SHOWN_CHARS = 1500;

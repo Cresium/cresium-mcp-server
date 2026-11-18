@@ -1,9 +1,17 @@
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import type {
+  CallToolResult,
+  InputRequiredResult,
+} from "@modelcontextprotocol/server";
+import { isInputRequiredResult } from "@modelcontextprotocol/server";
 
 import { UserFacingError } from "../errors.ts";
-import { DEFAULT_NARROWING_ADVICE } from "./constants.ts";
+import { judgeConfirmation } from "./confirm.ts";
+import {
+  DEFAULT_NARROWING_ADVICE,
+  NOT_CONFIRMED_MESSAGE,
+} from "./constants.ts";
 import { limitText } from "./limit.ts";
-import type { RunOptions, ToolCall } from "./types.ts";
+import type { RunOptions, ToolCall, ToolDef } from "./types.ts";
 
 function rejectOnAbort(signal: AbortSignal): Promise<never> {
   return new Promise((_resolve, reject) => {
@@ -36,10 +44,36 @@ function withAdvice({ tool }: ToolCall, message: string): string {
     : message;
 }
 
+// In production a write that asks for it is put to the person first; undefined means it may run.
+async function confirmFirst(
+  { tool, confirmation, context }: ToolCall,
+  input: Parameters<ToolDef["run"]>[0],
+): Promise<CallToolResult | InputRequiredResult | undefined> {
+  if (
+    tool.access !== "write" ||
+    !tool.confirmation ||
+    !confirmation ||
+    context.session.environment !== "production"
+  ) {
+    return;
+  }
+  const request = tool.confirmation.request(input, context.session);
+  if (!request) return;
+  const verdict = await judgeConfirmation(confirmation, tool, request);
+  switch (verdict.kind) {
+    case "confirmed":
+      return;
+    case "declined":
+      return errorResult(NOT_CONFIRMED_MESSAGE);
+    case "ask":
+      return verdict.result;
+  }
+}
+
 async function execute(
   call: ToolCall,
   { timeoutMs, ensureConnected }: RunOptions,
-): Promise<CallToolResult> {
+): Promise<CallToolResult | InputRequiredResult> {
   const { tool, input, context } = call;
   const parsed = tool.input.safeParse(input);
   if (!parsed.success) {
@@ -54,6 +88,9 @@ async function execute(
     if (tool.requiresVerifiedPartner) {
       await Promise.race([ensureConnected(runContext), rejectOnAbort(signal)]);
     }
+    signal.throwIfAborted();
+    const unconfirmed = await confirmFirst(call, parsed.data);
+    if (unconfirmed) return unconfirmed;
     signal.throwIfAborted();
     toolStarted = true;
     const text = await Promise.race([
@@ -86,9 +123,20 @@ async function execute(
 export async function runTool(
   call: ToolCall,
   options: RunOptions,
-): Promise<CallToolResult> {
+): Promise<CallToolResult | InputRequiredResult> {
   const startedAt = performance.now();
   const executed = await execute(call, options);
+  if (isInputRequiredResult(executed)) {
+    call.context.logger.info(
+      {
+        tool: call.tool.name,
+        awaitingConfirmation: true,
+        durationMs: Math.round(performance.now() - startedAt),
+      },
+      "tool call",
+    );
+    return executed;
+  }
   const advice = call.tool.narrowingAdvice ?? DEFAULT_NARROWING_ADVICE;
   // Every tool's text, an error's included, goes out through this one cut.
   const result: CallToolResult = {

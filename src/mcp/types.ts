@@ -14,6 +14,8 @@ export interface McpEndpointOptions {
   readonly apiBaseUrl: string;
   readonly timeoutMs: number;
   readonly ensureConnected: ConnectionGuard;
+  /** Signs the confirmation state; undefined means a write is never put to the person first. */
+  readonly confirmationSecret: string | undefined;
   readonly logger: Logger;
 }
 

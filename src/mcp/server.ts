@@ -15,6 +15,10 @@ import {
 import { maskApiKey, readCredentials } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
+import {
+  confirmationChannel,
+  createConfirmationCodec,
+} from "../tools/confirm.ts";
 import { runTool } from "../tools/run.ts";
 import type { ToolDef } from "../tools/types.ts";
 import {
@@ -70,11 +74,18 @@ function buildMcpServer(
 ): McpServer {
   const environmentLine = connectedTo(session.environment);
   const notice = options.mode === "read-only" ? ` ${READ_ONLY_NOTICE}` : "";
+  const codec = options.confirmationSecret
+    ? createConfirmationCodec(options.confirmationSecret, session)
+    : undefined;
   const server = new McpServer(SERVER_INFO, {
     capabilities: {
       tools: { listChanged: false },
       prompts: { listChanged: false },
     },
+    // Refuses a forged, expired or foreign state before any tool runs.
+    ...(codec && {
+      requestState: { verify: (state, ctx) => codec.verify(state, ctx) },
+    }),
     instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}${notice}\n${SERVER_INSTRUCTIONS}`,
   });
   registerPrompts(server, options.mode);
@@ -98,6 +109,7 @@ function buildMcpServer(
             tool,
             input,
             context: { session, logger, signal: ctx.mcpReq.signal },
+            confirmation: confirmationChannel(codec, ctx),
           },
           {
             timeoutMs: options.timeoutMs,

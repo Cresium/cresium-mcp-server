@@ -16,6 +16,7 @@ import type {
   ToolName,
 } from "../tools/types.ts";
 import { callApi } from "./call.ts";
+import { confirmationFor } from "./confirmation.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
@@ -90,6 +91,13 @@ function answerText(
     : `${text}\n\n${UNMATCHED_FIELDS_NOTE} ${unmatched.join(", ")}`;
 }
 
+function withSchemaHint(error: unknown): never {
+  if (error instanceof UserFacingError && error.schemaViolation) {
+    throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
+  }
+  throw error;
+}
+
 async function runOperation(
   input: ApiCallRequest & { readonly fields?: readonly string[] | undefined },
   operation: Operation,
@@ -101,10 +109,7 @@ async function runOperation(
     }
     return answerText(await callApi(ctx, operation, input), input.fields);
   } catch (error) {
-    if (error instanceof UserFacingError && error.schemaViolation) {
-      throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
-    }
-    throw error;
+    return withSchemaHint(error);
   }
 }
 
@@ -250,6 +255,20 @@ const writeApiTool = defineTool({
   description: CALL_TOOLS.write.description,
   input: callInput,
   ...CALL_TOOLS.write.effect,
+  confirmation: {
+    request: (input, session) => {
+      if (input.dryRun) return;
+      try {
+        const operation = operationFor("write", input.operation);
+        return confirmationFor(
+          operation.id,
+          previewOperation(session, operation, input),
+        );
+      } catch (error) {
+        return withSchemaHint(error);
+      }
+    },
+  },
   run: async (input, ctx) =>
     await runOperation(input, operationFor("write", input.operation), ctx),
 });

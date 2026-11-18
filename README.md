@@ -80,6 +80,20 @@ The server has to know which IP is the caller's. Behind a proxy, the socket addr
 
 The count lives in memory and per pod: with N pods a client can make up to N times the limit, and a restart resets it. To limit before traffic reaches the pods, or across them, do it in the ingress instead. There is no switch to turn it off; set `RATE_LIMIT_PER_MINUTE` high if you must.
 
+## Confirming production writes
+
+In `/production`, `write_api` can move real money or delete a CVU. When the client can ask its user a question, a write that is not a dry run first shows the person the environment, the method, the URL and the body exactly as they will be sent (a very long body is cut, with its size), and only runs if they accept. If they decline or cancel, nothing is sent and the agent is told so. Sandbox, dry runs, reads and every other tool never ask.
+
+This needs a client that speaks the 2026-07-28 protocol revision and declares the `elicitation` capability. Any other client works as before, without the question. The server keeps no memory between requests: the answer comes back with a state that the server signs with `CONFIRMATION_SECRET` and ties to the exact call (operation, path and query, body), to the partner (environment, company and API key) and to a 5 minute expiry. A different call, another company's call, an altered state or an old one is refused or asked again, and never sent.
+
+| Variable              | Default | Meaning                                                                                                                                  |
+| --------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONFIRMATION_SECRET` | unset   | At least 32 characters; the same value on every pod (from Doppler). Unset or empty turns the question off and the server logs that once. |
+
+To turn it off, unset `CONFIRMATION_SECRET`. Rotating it makes a pending question fail with "Invalid or expired requestState"; the agent repeats the call and the person is asked again.
+
+Tested only with the MCP SDK's own client (`@modelcontextprotocol/client` 2.4.0, accepting, declining and cancelling, against several server instances). Not tested with Claude Code, Cursor, Claude Desktop or any other real client: whether and how they show the question is unknown. A client that does not declare the capability is never asked. A confirmed state can be sent again for the same call during its 5 minutes, because a stateless server cannot mark it used.
+
 ## Tools
 
 | Tool                 | Does                                                                                                                                                       |
