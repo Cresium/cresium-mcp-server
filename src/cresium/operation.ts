@@ -1,5 +1,6 @@
 import { UNAUTHORIZED_STATUS } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
+import { CREDENTIAL_HEADERS } from "../partner/constants.ts";
 import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { callCresium, previewRequest } from "./client.ts";
@@ -52,7 +53,7 @@ function authHint(
   const connected = connectedTo(session.environment);
   if (problem) return `${problem.hint} ${connected}`;
   if (status !== UNAUTHORIZED_STATUS) return;
-  return `Revisá x-api-key, x-api-secret y x-company-id, y que la key sea de ${session.environment}. ${connected}`;
+  return `Revisá ${CREDENTIAL_HEADERS.apiKey}, ${CREDENTIAL_HEADERS.secret} y ${CREDENTIAL_HEADERS.companyId}, y que la key sea de ${session.environment}. ${connected}`;
 }
 
 function assertSucceeded(

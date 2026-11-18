@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 
 import { USER_AGENT } from "../constants.ts";
-import { TIMESTAMP_PLACEHOLDER } from "./constants.ts";
+import { MAGE_HEADERS, TIMESTAMP_PLACEHOLDER } from "./constants.ts";
 import type {
   CresiumRequest,
   CresiumRequestPreview,
@@ -66,10 +66,10 @@ export async function callCresium(
   const response = await fetch(`${baseUrl}${url}`, {
     method,
     headers: {
-      "x-api-key": credentials.apiKey,
-      "x-company-id": credentials.companyId,
-      "x-timestamp": timestamp,
-      "x-signature": signature,
+      [MAGE_HEADERS.apiKey]: credentials.apiKey,
+      [MAGE_HEADERS.companyId]: credentials.companyId,
+      [MAGE_HEADERS.timestamp]: timestamp,
+      [MAGE_HEADERS.signature]: signature,
       "user-agent": USER_AGENT,
       ...contentType,
     },
