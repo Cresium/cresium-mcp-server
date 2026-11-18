@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import { findOperation } from "../api/operations.ts";
+import { sampleBody } from "../../test/support/sample-body.ts";
+import { findOperation, OPERATIONS } from "../api/operations.ts";
 import { UserFacingError } from "../errors.ts";
 import { toCresiumRequest } from "./request.ts";
 
@@ -110,6 +111,106 @@ describe("toCresiumRequest", () => {
         paymentOrder: { metadata: { pedido: "A-1" } },
       });
     });
+
+    it("rejects an unknown field inside a nested object, by path, naming the valid fields there", () => {
+      const build = (): unknown =>
+        toCresiumRequest(findOperation("POST /v3/payment-order/"), {
+          ...NO_PARAMS,
+          body: {
+            alias: "cobro.pedido",
+            paymentOrder: {
+              externalId: "orden-1",
+              amount: 100,
+              expiresin: "1h",
+            },
+          },
+        });
+      expect(build).toThrow(
+        "Body inválido para POST /v3/payment-order/: la API no conoce paymentOrder.expiresin. Campos válidos en paymentOrder: externalId, amount, title, description, metadata, expiresIn.",
+      );
+    });
+
+    it("rejects an unknown field in an item of a list body, naming each level", () => {
+      const invoice = {
+        amount: 100,
+        payerNationalIdentifier: "20123456789",
+        payerName: "Ana",
+        status: "DRAFT",
+      };
+      const build = (): unknown =>
+        toCresiumRequest(findOperation("POST /v3/invoice/"), {
+          ...NO_PARAMS,
+          body: [invoice, { ...invoice, descripcion: "x", extra: 1 }],
+        });
+      expect(build).toThrow(
+        "Body inválido para POST /v3/invoice/: la API no conoce [1].descripcion, [1].extra. Campos válidos en [1]: amount, description, internalNote, payerInternalNote, payerNationalIdentifier, payerName, expiresAt, issuedAt, payerEmail, externalId, fileKey, status.",
+      );
+    });
+
+    it("reports unknown fields at several levels in one message", () => {
+      const build = (): unknown =>
+        toCresiumRequest(findOperation("POST /v3/payment-order/"), {
+          ...NO_PARAMS,
+          body: {
+            alias: "cobro.pedido",
+            aliass: "x",
+            paymentOrder: { externalId: "orden-1", amount: 100, titulo: "t" },
+          },
+        });
+      expect(build).toThrow(
+        "Body inválido para POST /v3/payment-order/: la API no conoce aliass. Campos válidos: alias, paymentOrder. Tampoco conoce paymentOrder.titulo. Campos válidos en paymentOrder: externalId, amount, title, description, metadata, expiresIn.",
+      );
+    });
+
+    it("sees an unknown field even where the validator would strip it before sending", () => {
+      const closed = {
+        ...deposit,
+        body: {
+          type: "object",
+          properties: { cvu: { type: "string" } },
+          additionalProperties: false,
+        },
+      };
+      const build = (): unknown =>
+        toCresiumRequest(closed, {
+          ...NO_PARAMS,
+          body: { cvu: "1", cvv: "2" },
+        });
+      expect(build).toThrow(/no conoce cvv\. Campos válidos: cvu\./);
+    });
+
+    it("accepts any key under a schema that explicitly allows additional properties", () => {
+      const open = {
+        ...deposit,
+        body: {
+          type: "object",
+          properties: { cvu: { type: "string" } },
+          additionalProperties: true,
+        },
+      };
+      const request = toCresiumRequest(open, {
+        ...NO_PARAMS,
+        body: { cvu: "1", libre: "2" },
+      });
+      expect(request.body).toEqual({ cvu: "1", libre: "2" });
+    });
+
+    it.each(OPERATIONS.filter(({ body }) => body != null).map(({ id }) => id))(
+      "accepts a body for %s built from every field of its own schema",
+      (id) => {
+        const operation = findOperation(id);
+        const call = {
+          pathParams: Object.fromEntries(
+            operation.parameters
+              .filter((param) => param.in === "path")
+              .map((param) => [param.name, "1"]),
+          ),
+          query: {},
+          body: sampleBody(operation.body ?? {}),
+        };
+        expect(() => toCresiumRequest(operation, call)).not.toThrow();
+      },
+    );
 
     it("rejects a body on an operation that takes none", () => {
       const build = (): unknown =>

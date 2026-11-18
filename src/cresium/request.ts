@@ -8,6 +8,7 @@ import type {
   Operation,
   OperationCall,
   QueryValue,
+  UnknownField,
 } from "./types.ts";
 
 // Fastify 4's default Ajv options, which mage uses. Fastify validates (and mutates) the body before mage
@@ -26,21 +27,75 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value != null && !Array.isArray(value);
 }
 
+// The catalogue's only combinator; its branches are read as one schema.
+function branchesOf(schema: JsonSchema): readonly JsonSchema[] {
+  const { anyOf } = schema;
+  return [schema, ...(Array.isArray(anyOf) ? anyOf.filter(isRecord) : [])];
+}
+
+function allowsAnyKey(additionalProperties: unknown): boolean {
+  return additionalProperties === true || isRecord(additionalProperties);
+}
+
+function unknownFieldsIn(
+  schema: JsonSchema,
+  value: unknown,
+  path: string,
+): readonly UnknownField[] {
+  const branches = branchesOf(schema);
+  if (Array.isArray(value)) {
+    const itemSchemas = branches.map(({ items }) => items).filter(isRecord);
+    return value.flatMap((item, index) =>
+      itemSchemas.flatMap((itemSchema) =>
+        unknownFieldsIn(itemSchema, item, `${path}[${index}]`),
+      ),
+    );
+  }
+  if (!isRecord(value)) return [];
+  const declared = new Map(
+    branches
+      .map(({ properties }) => properties)
+      .filter(isRecord)
+      .flatMap((properties) => Object.entries(properties)),
+  );
+  const flagsExtraKeys =
+    declared.size > 0 &&
+    !branches.some(({ additionalProperties }) =>
+      allowsAnyKey(additionalProperties),
+    );
+  return Object.entries(value).flatMap(([field, inner]) => {
+    const fieldPath = path ? `${path}.${field}` : field;
+    const fieldSchema = declared.get(field);
+    if (isRecord(fieldSchema)) {
+      return unknownFieldsIn(fieldSchema, inner, fieldPath);
+    }
+    if (declared.has(field) || !flagsExtraKeys) return [];
+    return [{ path: fieldPath, parent: path, known: [...declared.keys()] }];
+  });
+}
+
+function describeUnknownFields(fields: readonly UnknownField[]): string {
+  const byParent = Map.groupBy(fields, ({ parent }) => parent);
+  const sentences = [...byParent].map(([parent, group]) => {
+    const where = parent ? ` en ${parent}` : "";
+    const known = group[0]?.known.join(", ") ?? "";
+    const paths = group.map(({ path }) => path).join(", ");
+    return `${paths}. Campos válidos${where}: ${known}.`;
+  });
+  return `la API no conoce ${sentences.join(" Tampoco conoce ")}`;
+}
+
 // mage ignores a field its schema does not declare, so a typo like `ammount` would be sent and silently dropped.
+// Checked on the caller's body, before the validator's `removeAdditional` could strip the typo.
 function assertKnownFields(
   operation: Operation,
   schema: JsonSchema,
   body: unknown,
 ): void {
-  const { properties } = schema;
-  if (!isRecord(properties) || !isRecord(body)) return;
-  const unknownFields = Object.keys(body).filter(
-    (field) => !(field in properties),
-  );
+  const unknownFields = unknownFieldsIn(schema, body, "");
   if (unknownFields.length === 0) return;
-  const knownFields = Object.keys(properties).join(", ");
   throw new UserFacingError(
-    `Body inválido para ${operation.id}: la API no conoce ${unknownFields.join(", ")}. Campos válidos: ${knownFields}.`,
+    `Body inválido para ${operation.id}: ${describeUnknownFields(unknownFields)}`,
   );
 }
 
@@ -49,6 +104,7 @@ function toBody(operation: Operation, body: unknown): unknown {
   if (!operation.body) {
     throw new UserFacingError(`${operation.id} no recibe body.`);
   }
+  assertKnownFields(operation, operation.body, body);
   const prepared = structuredClone(body);
   const validate = ajv.compile(operation.body);
   if (!validate(prepared)) {
@@ -56,7 +112,6 @@ function toBody(operation: Operation, body: unknown): unknown {
       `Body inválido para ${operation.id}: ${ajv.errorsText(validate.errors)}. Revisá el schema con search_api.`,
     );
   }
-  assertKnownFields(operation, operation.body, prepared);
   return prepared;
 }
 

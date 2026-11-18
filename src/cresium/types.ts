@@ -27,6 +27,15 @@ export interface OperationCall {
     Readonly<Record<string, unknown>> | readonly unknown[] | undefined;
 }
 
+/** A body field the operation's schema does not declare, e.g. `paymentOrder.expiresin`. */
+export interface UnknownField {
+  readonly path: string;
+  /** Path of the object that holds it; "" for the body itself. */
+  readonly parent: string;
+  /** The fields that object's schema declares. */
+  readonly known: readonly string[];
+}
+
 export interface SignedFields {
   readonly timestamp: string;
   readonly method: HttpMethod;
