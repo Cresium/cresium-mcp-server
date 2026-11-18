@@ -1,6 +1,7 @@
 // Regenerates src/api/operations.json from Cresium/bible's openapi.json.
 // Usage: bun run spec:update [path/to/openapi.json]   (default: fetch bible's main branch with `gh`)
-// .github/workflows/spec-drift.yml runs it against the published docs.cresium.com/openapi.json and fails on a difference.
+// mage's deploy workflow runs it after each production deploy and pushes the result to main,
+// so it must run without installed dependencies (no `bun install`, no prettier).
 import { $ } from "bun";
 
 import { HTTP_METHODS } from "../src/api/constants.ts";
@@ -102,6 +103,4 @@ const operations = Object.entries(spec.paths)
   .filter((operation) => !EXCLUDED_OPERATIONS.has(operation.id));
 
 await Bun.write(OUTPUT_PATH, `${JSON.stringify(operations, null, 2)}\n`);
-// Formatted like the committed file, so `git diff` shows only real API changes.
-await $`bunx prettier --write ${OUTPUT_PATH.pathname}`.quiet();
 console.log(`wrote ${operations.length} operations to ${OUTPUT_PATH.pathname}`);

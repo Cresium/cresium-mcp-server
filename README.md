@@ -104,7 +104,7 @@ cresium-mcp  (src/http/app.ts)
 - Logs are JSON lines (Pino). Each tool call logs the environment, company, the API key's last 4 characters, the tool, the V3 operation, its status and duration. The secret and the full key are never logged, and `src/http/app.test.ts` checks this.
 - Each call to the API carries the `User-Agent` `cresium-mcp-server/<version>`.
 - The logger censors the `x-api-key` and `x-api-secret` headers and any `apiKey` or `secret` field, in case new code ever logs them.
-- `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. Run `bun run spec:update` after the API docs change. The `API spec drift` workflow compares it every weekday with the published `docs.cresium.com/openapi.json` and fails when they differ.
+- `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. The API's deploy workflow in `mage` regenerates it and pushes it to `main` after each production deploy. Run `bun run spec:update` by hand to refresh it sooner.
 
 ## Develop
 
