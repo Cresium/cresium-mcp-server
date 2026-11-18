@@ -3,7 +3,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 
-import { readTextWithin } from "../body.ts";
+import { fetchUncompressed, readTextWithin } from "../body.ts";
 import { MAX_UPSTREAM_BODY_BYTES, SERVER_INFO } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
 import { BLOCK_SEPARATOR, DOCS_PAGE_TOO_LARGE } from "./constants.ts";
@@ -56,7 +56,7 @@ export async function fetchDocPage(
     .replace(/\.mdx?$/, "");
   // A redirect is not followed: it could point this server at a host other than the docs site.
   const hangUp = new AbortController();
-  const response = await fetch(`${docsUrl}/${normalized}.md`, {
+  const response = await fetchUncompressed(`${docsUrl}/${normalized}.md`, {
     signal: AbortSignal.any([signal, hangUp.signal]),
     redirect: "manual",
   });
