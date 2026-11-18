@@ -20,16 +20,16 @@ import {
   createConfirmationCodec,
 } from "../tools/confirm.ts";
 import { runTool } from "../tools/run.ts";
-import type { ToolDef } from "../tools/types.ts";
+import type { AccessMode, ToolDef } from "../tools/types.ts";
 import {
+  ACCESS_NOTICE,
   BATCH_REFUSED_MESSAGE,
   BODY_TOO_LARGE_ANSWER,
   PAYLOAD_TOO_LARGE_STATUS,
   PROMPTS,
-  READ_ONLY_NOTICE,
   SERVER_INSTRUCTIONS,
 } from "./constants.ts";
-import type { AccessMode, McpBody, McpEndpointOptions } from "./types.ts";
+import type { McpBody, McpEndpointOptions } from "./types.ts";
 
 // A write tool names the environment in its own description, because agents read it right before calling.
 function describeTool(tool: ToolDef, environmentLine: string): string {
@@ -73,7 +73,6 @@ function buildMcpServer(
   session: PartnerSession,
 ): McpServer {
   const environmentLine = connectedTo(session.environment);
-  const notice = options.mode === "read-only" ? ` ${READ_ONLY_NOTICE}` : "";
   const codec = options.confirmationSecret
     ? createConfirmationCodec(options.confirmationSecret, session)
     : undefined;
@@ -86,7 +85,7 @@ function buildMcpServer(
     ...(codec && {
       requestState: { verify: (state, ctx) => codec.verify(state, ctx) },
     }),
-    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}${notice}\n${SERVER_INSTRUCTIONS}`,
+    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}${ACCESS_NOTICE[options.mode]}\n${SERVER_INSTRUCTIONS[options.mode]}`,
   });
   registerPrompts(server, options.mode);
   const logger = options.logger.child({

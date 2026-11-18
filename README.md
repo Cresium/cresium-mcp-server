@@ -62,7 +62,7 @@ Claude.ai and ChatGPT on the web are not supported: they connect through OAuth a
 
 ## Read-only connection
 
-Add `/read-only` to either path (`https://mcp.cresium.app/sandbox/read-only`, `https://mcp.cresium.app/production/read-only`) to give an analyst or a support agent a connection that cannot write. It is the same server with the same headers, but every tool that changes something (`write_api`, `send_docs_feedback`) is not offered, the instructions say so, and `integrar_cvus_dedicados` is not offered because it creates data; `depurar_firma` is, without `write_api`. Calling a write tool by name answers "Tool write_api not found", and `read_api` still refuses write operations. To get writes, connect to the path without `/read-only`. There is no switch: the default paths are unchanged, and the variants are not listed in `server.json`, because a registry entry cannot tell two URLs apart by purpose.
+Add `/read-only` to either path (`https://mcp.cresium.app/sandbox/read-only`, `https://mcp.cresium.app/production/read-only`) to give an analyst or a support agent a connection that cannot write. It is the same server with the same headers, but every tool that changes something (`write_api`, `send_docs_feedback`) is not offered, the instructions say so and give no advice about writing, and `integrar_cvus_dedicados` is not offered because it creates data; `depurar_firma` is, without `write_api`. Calling a write tool by name answers "Tool write_api not found", and `read_api` still refuses write operations, saying the connection is read-only; no text on that connection names a tool it does not offer. To get writes, connect to the path without `/read-only`. There is no switch: the default paths are unchanged, and the variants are not listed in `server.json`, because a registry entry cannot tell two URLs apart by purpose.
 
 ## Rate limit per IP
 
@@ -77,6 +77,8 @@ The server has to know which IP is the caller's. Behind a proxy, the socket addr
 
 - Too low (for example `0` behind the ingress): every request appears to come from the ingress, so all partners share one budget of 300 a minute, and one noisy partner locks out the rest.
 - Too high (for example `2` with one proxy): the server believes an entry the caller wrote. Anyone can send `X-Forwarded-For: 1.2.3.4` with a new fake address on each request and never reach the limit.
+
+The deploy must set it (in production the server logs a warning at startup while it is `0`): count the proxies a request crosses before reaching the pod, and confirm by sending one request and counting the addresses your own proxies appended to `X-Forwarded-For`.
 
 The count lives in memory and per pod: with N pods a client can make up to N times the limit, and a restart resets it. To limit before traffic reaches the pods, or across them, do it in the ingress instead. There is no switch to turn it off; set `RATE_LIMIT_PER_MINUTE` high if you must.
 
@@ -126,7 +128,7 @@ Your agent's prompt menu offers two ready-made tasks:
 
 ### Diagnosing "Invalid signature"
 
-`diagnose_signature` takes what your code signed (`kind` `request` or `webhook`, `timestamp`, `method`, `url`, the raw `body`, and the `signature` it computed), recomputes the signature with the secret of your connection and compares them in constant time. If they differ it tries a fixed table of known mistakes (hex instead of base64, lowercase method, URL without its query, unencoded `[]`, pretty-printed body, `{}` for an empty body, missing final `|`, decoded secret, API key as secret, and more) and names the first one that reproduces your signature, with the fix. It also warns about a timestamp that is not ISO 8601 or is outside the window (60 seconds for requests, 5 minutes for webhooks). It never returns the secret, the API key or the correct signature, and it needs no valid credentials because it calls nothing. The `depurar_firma` prompt uses it first. There is no switch.
+`diagnose_signature` takes what your code signed (`kind` `request` or `webhook`, `timestamp`, `method`, `url`, the raw `body`, and the `signature` it computed), recomputes the signature with the secret of your connection and compares them in constant time. If they differ it tries a fixed table of known mistakes (hex instead of base64, lowercase method, URL without its query, unencoded `[]`, pretty-printed body, `{}` for an empty body, missing final `|`, decoded secret, API key as secret, and more) and names the first one that reproduces your signature, with the fix. It also warns about a timestamp that is not ISO 8601 or is outside the window (60 seconds for requests, 5 minutes for webhooks). It never returns the secret, the API key or the correct signature, and it needs no valid credentials because it calls nothing. `body` takes up to 65,536 characters and `url` up to 4,096: longer inputs are refused before any signing work, since anyone can call it. The `depurar_firma` prompt uses it first. There is no switch.
 
 ```json
 {
@@ -164,7 +166,7 @@ Your agent's prompt menu offers two ready-made tasks:
 
 ### Size limits
 
-No tool returns more than 50,000 characters of text (about a third of the roughly 150,000 characters claude.ai accepts). A longer result, an error message included, is cut and ends with a note that says how many characters were dropped, that the text is incomplete (a cut JSON is no longer valid JSON) and how to ask for less: `pageSize`, filters and `fields` for `read_api`, a more specific search or one page for the docs. A full page of 100 transactions fits. The server also stops reading Cresium's answer, and a docs page, after 2 MiB: it hangs up and tells the agent, and for a write it says the write was sent and may have been applied. Both limits are constants (`MAX_RESULT_CHARS`, `MAX_UPSTREAM_BODY_BYTES`), not settings. Docs search and feedback go through Mintlify's own MCP client and are not bounded this way.
+No tool returns more than 50,000 characters of text (about a third of the roughly 150,000 characters claude.ai accepts). A longer result, an error message included, is cut and ends with a note that says how many characters were dropped, that the text is incomplete (a cut JSON is no longer valid JSON) and how to ask for less: `pageSize`, filters and `fields` for `read_api`, a more specific search or one page for the docs. A full page of 100 transactions fits. The server also stops reading Cresium's answer, and a docs page, after 2 MiB: it hangs up and tells the agent, and for a write it says the write was sent and may have been applied. The 2 MiB are counted as the bytes arrive, so the server asks for uncompressed answers (`accept-encoding: identity`, and Bun's automatic decompression off); an answer compressed anyway is refused unread instead of being inflated. Both limits are constants (`MAX_RESULT_CHARS`, `MAX_UPSTREAM_BODY_BYTES`), not settings. Docs search and feedback go through Mintlify's own MCP client and are not bounded this way.
 
 ### Errors
 

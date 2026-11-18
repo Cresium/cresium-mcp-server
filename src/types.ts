@@ -16,4 +16,6 @@ export interface Config {
   readonly logLevel: LogLevel;
   /** Signs the state of a production write waiting for the person's answer; the same on every pod. Undefined turns the confirmation off. */
   readonly confirmationSecret: string | undefined;
+  /** Logged once at startup: settings that run but probably are not what the deploy meant. */
+  readonly warnings: readonly string[];
 }

@@ -2,9 +2,11 @@ import * as z from "zod";
 
 import {
   CONFIRMATION_SECRET_MIN_LENGTH,
+  CONFIRMATION_SECRET_UNSET_WARNING,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
   LOG_LEVELS,
   LOOPBACK_HOSTNAMES,
+  SHARED_RATE_LIMIT_WARNING,
 } from "./constants.ts";
 import type { Config } from "./types.ts";
 
@@ -39,7 +41,25 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(CONFIRMATION_SECRET_MIN_LENGTH).optional(),
   ),
+  NODE_ENV: z.string().optional(),
 });
+
+type Env = z.infer<typeof envSchema>;
+
+/** Settings that run but are probably not what the deploy meant; the server logs each once at startup. */
+function warningsFor(e: Env): readonly string[] {
+  return [
+    {
+      // TRUSTED_PROXY_HOPS keeps 0 as default: a wrong positive value would let callers forge their IP silently.
+      applies: e.NODE_ENV === "production" && e.TRUSTED_PROXY_HOPS === 0,
+      warning: SHARED_RATE_LIMIT_WARNING,
+    },
+    {
+      applies: !e.CONFIRMATION_SECRET,
+      warning: CONFIRMATION_SECRET_UNSET_WARNING,
+    },
+  ].flatMap(({ applies, warning }) => (applies ? [warning] : []));
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const parsed = envSchema.safeParse(env);
@@ -60,5 +80,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     trustedProxyHops: e.TRUSTED_PROXY_HOPS,
     logLevel: e.LOG_LEVEL,
     confirmationSecret: e.CONFIRMATION_SECRET,
+    warnings: warningsFor(e),
   };
 }

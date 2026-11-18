@@ -9,6 +9,9 @@ const VALID = {
   CRESIUM_DOCS_URL: "https://docs.cresium.com",
 };
 
+/** With the confirmation secret set, so its own warning stays out of the way. */
+const CONFIRMING = { ...VALID, CONFIRMATION_SECRET: "c".repeat(32) };
+
 describe("loadConfig", () => {
   it("maps each environment to its API and trims trailing slashes", () => {
     const config = loadConfig(VALID);
@@ -38,6 +41,30 @@ describe("loadConfig", () => {
     });
     expect(config.rateLimitPerMinute).toBe(60);
     expect(config.trustedProxyHops).toBe(1);
+  });
+
+  it("warns once in production when no proxy hop is trusted, since every caller then shares one limit", () => {
+    const { warnings } = loadConfig({ ...CONFIRMING, NODE_ENV: "production" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("TRUSTED_PROXY_HOPS");
+    expect(warnings[0]).toContain("one rate limit");
+  });
+
+  it.each([
+    [
+      "production with the hops set",
+      { NODE_ENV: "production", TRUSTED_PROXY_HOPS: "1" },
+    ],
+    ["outside production", { NODE_ENV: "development" }],
+    ["without NODE_ENV", {}],
+  ])("does not warn about the proxy hops %s", (_case, env) => {
+    expect(loadConfig({ ...CONFIRMING, ...env }).warnings).toEqual([]);
+  });
+
+  it("warns once when CONFIRMATION_SECRET is not set, since production writes then run unconfirmed", () => {
+    const { warnings } = loadConfig({ ...VALID, TRUSTED_PROXY_HOPS: "1" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("CONFIRMATION_SECRET");
   });
 
   it.each([

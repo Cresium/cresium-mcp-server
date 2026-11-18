@@ -152,9 +152,83 @@ const CASES: Case[] = [
   },
 ];
 
+const INHERITED_NAMES = [
+  "constructor",
+  "toString",
+  "__proto__",
+  "hasOwnProperty",
+];
+
+/** Answers as mage sends them: parsed from JSON, so "__proto__" is an own key like any other. */
+const OWN_KEY_CASES: Case[] = [
+  {
+    name: "a null value requested first",
+    answer: { data: [{ id: 1, note: null, amount: 5 }] },
+    fields: ["note", "amount"],
+    value: { data: [{ note: null, amount: 5 }] },
+    unmatched: [],
+  },
+  {
+    name: "a null value requested last",
+    answer: { data: [{ id: 1, note: null, amount: 5 }] },
+    fields: ["amount", "note"],
+    value: { data: [{ amount: 5, note: null }] },
+    unmatched: [],
+  },
+  {
+    name: "a nested null next to a nested value",
+    answer: { data: { counterparty: { name: null, cvu: "000" } } },
+    fields: ["counterparty.name", "counterparty.cvu"],
+    value: { data: { counterparty: { name: null, cvu: "000" } } },
+    unmatched: [],
+  },
+  ...INHERITED_NAMES.flatMap((name): Case[] => [
+    {
+      name: `a data key named ${name}, requested before another key`,
+      answer: JSON.parse(`{"data":[{"${name}":2,"id":3}]}`),
+      fields: [name, "id"],
+      value: JSON.parse(`{"data":[{"${name}":2,"id":3}]}`),
+      unmatched: [],
+    },
+    {
+      name: `a data key named ${name}, requested after another key`,
+      answer: JSON.parse(`{"data":[{"id":3,"${name}":{"x":1}}]}`),
+      fields: ["id", `${name}.x`],
+      value: JSON.parse(`{"data":[{"id":3,"${name}":{"x":1}}]}`),
+      unmatched: [],
+    },
+    {
+      name: `a requested path ${name} that is not a data key`,
+      answer: { data: [{ id: 3 }] },
+      fields: ["id", name],
+      value: { data: [{ id: 3 }] },
+      unmatched: [name],
+    },
+  ]),
+];
+
 describe("projectFields", () => {
   it.each(CASES)("$name", ({ answer, fields, value, unmatched }) => {
     expect(projectFields(answer, fields)).toEqual({ value, unmatched });
+  });
+
+  it.each(OWN_KEY_CASES)(
+    "keeps own keys and null: $name",
+    ({ answer, fields, value, unmatched }) => {
+      const projection = projectFields(answer, fields);
+      expect(JSON.stringify(projection.value)).toBe(JSON.stringify(value));
+      expect(projection.unmatched).toEqual(unmatched);
+    },
+  );
+
+  it("does not pollute Object.prototype through a __proto__ data key", () => {
+    const answer: unknown = JSON.parse(
+      '{"data":[{"__proto__":{"polluted":1},"id":1},{"__proto__":{"polluted":2}}]}',
+    );
+    projectFields(answer, ["__proto__.polluted", "id"]);
+    projectFields(answer, ["id", "__proto__"]);
+    expect(Object.hasOwn(Object.prototype, "polluted")).toBe(false);
+    expect("polluted" in {}).toBe(false);
   });
 
   it("does not change the answer it was given", () => {

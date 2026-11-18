@@ -7,12 +7,13 @@ import type { ErrorRequestHandler, Express } from "express";
 import express from "express";
 
 import { createConnectionGuard } from "../api/connection.ts";
-import { API_TOOLS } from "../api/tools.ts";
+import { createApiTools } from "../api/tools.ts";
 import { LOOPBACK_HOSTNAMES } from "../constants.ts";
 import { createDocsTools } from "../docs/tools.ts";
-import { ACCESS_MODES, MODE_PATH_SUFFIX } from "../mcp/constants.ts";
+import { MODE_PATH_SUFFIX } from "../mcp/constants.ts";
 import { createMcpEndpoint } from "../mcp/server.ts";
 import { ENVIRONMENTS } from "../partner/constants.ts";
+import { ACCESS_MODES } from "../tools/constants.ts";
 import { createRateLimiter } from "./rate-limit.ts";
 import type { AppDeps } from "./types.ts";
 
@@ -35,12 +36,12 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.set("trust proxy", config.trustedProxyHops);
 
   const ensureConnected = createConnectionGuard();
-  const tools = [...API_TOOLS, ...createDocsTools(config.docsUrl)];
+  const docsTools = createDocsTools(config.docsUrl);
   const rateLimiter = createRateLimiter(config);
   for (const environment of ENVIRONMENTS) {
     for (const mode of ACCESS_MODES) {
       const mcp = createMcpEndpoint({
-        tools,
+        tools: [...createApiTools(mode), ...docsTools],
         environment,
         mode,
         apiBaseUrl: config.apiUrls[environment],

@@ -4,6 +4,8 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
 import { startEndlessUpstream } from "../../test/support/endless-upstream.ts";
+import { startGzipUpstream } from "../../test/support/gzip-upstream.ts";
+import { bytesHandedToReaders } from "../../test/support/reader-bytes.ts";
 import { MAX_UPSTREAM_BODY_BYTES } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
 import { MINTLIFY_TOOLS } from "./constants.ts";
@@ -119,5 +121,34 @@ describe("fetchDocPage with a page that never ends", () => {
     expect(endless.state.cancelled).toBe(true);
     expect(endless.state.sentBytes).toBeLessThan(MAX_UPSTREAM_BODY_BYTES * 3);
     await endless.stop();
+  });
+});
+
+describe("fetchDocPage with a compressed page", () => {
+  it("asks for an uncompressed page, so a gzip body never inflates in memory", async () => {
+    const honoring = startGzipUpstream({ honorsAcceptEncoding: true });
+    let page = "";
+    const handed = await bytesHandedToReaders(async () => {
+      page = await fetchDocPage(honoring.baseUrl, "sandbox", signal);
+    });
+    await honoring.stop();
+    expect(honoring.acceptEncodings).toEqual(["identity"]);
+    expect(page).toBe(honoring.smallAnswer);
+    expect(handed).toBe(honoring.smallAnswer.length);
+  });
+
+  it("refuses a page compressed anyway without inflating it", async () => {
+    const ignoring = startGzipUpstream({ honorsAcceptEncoding: false });
+    let error: unknown;
+    const handed = await bytesHandedToReaders(async () => {
+      error = await fetchDocPage(ignoring.baseUrl, "sandbox", signal).catch(
+        (thrown: unknown) => thrown,
+      );
+    });
+    await ignoring.stop();
+    expect(handed).toBeLessThanOrEqual(ignoring.compressedBytes);
+    expect(error).toBeInstanceOf(UserFacingError);
+    if (!(error instanceof UserFacingError)) return;
+    expect(error.message).toContain("comprimid");
   });
 });

@@ -5,11 +5,7 @@ import { createLogger } from "./logger.ts";
 
 const config = loadConfig(process.env);
 const logger = createLogger(config.logLevel);
-if (!config.confirmationSecret) {
-  logger.warn(
-    "CONFIRMATION_SECRET is not set: production writes run without asking the person to confirm them",
-  );
-}
+for (const warning of config.warnings) logger.warn(warning);
 const app = createApp({ config, logger });
 
 const server = app.listen(config.port, () => {

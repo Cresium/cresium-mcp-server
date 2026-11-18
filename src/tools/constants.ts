@@ -1,3 +1,6 @@
+/** What a connection may do: everything its API key allows, or only reads. Chosen by the path the partner connects to. */
+export const ACCESS_MODES = ["full", "read-only"] as const;
+
 /**
  * The most characters of one tool result the agent receives. claude.ai documents about 150,000 characters
  * per tool result and refuses a larger one outright; 50,000 (roughly 12,000 tokens) stays a third of that,

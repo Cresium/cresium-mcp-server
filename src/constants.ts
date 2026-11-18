@@ -19,6 +19,12 @@ export const LOG_LEVELS = [
 /** The least a server secret may have: createRequestStateCodec refuses a key under 32 bytes. */
 export const CONFIRMATION_SECRET_MIN_LENGTH = 32;
 
+export const SHARED_RATE_LIMIT_WARNING =
+  "TRUSTED_PROXY_HOPS is 0: behind a proxy all callers share one rate limit per pod, so one client can lock out everyone. Set it to the number of proxies in front of this server.";
+
+export const CONFIRMATION_SECRET_UNSET_WARNING =
+  "CONFIRMATION_SECRET is not set: production writes run without asking the person to confirm them";
+
 export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
 export const TOO_MANY_REQUESTS_STATUS = 429;
@@ -40,6 +46,9 @@ export const DEFAULT_RATE_LIMIT_PER_MINUTE = 300;
 export const MAX_UPSTREAM_BODY_BYTES = 2 * 1024 * 1024;
 
 export const BYTES_PER_MIB = 1024 * 1024;
+
+export const UPSTREAM_ANSWER_COMPRESSED =
+  "El servidor respondió comprimido aunque se le pidió sin comprimir, y la respuesta no se leyó: descomprimida podría ocupar mucho más que el máximo.";
 
 export const USER_FACING_ERROR_NAME = "UserFacingError";
 

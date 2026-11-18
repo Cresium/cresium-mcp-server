@@ -295,6 +295,25 @@ describe("diagnoseSignature", () => {
     expect(result.warnings.join(" ")).toContain("empezar con /");
   });
 
+  it("lists the same checks whatever the secret looks like, so the list says nothing about it", () => {
+    const checkedWith = (secret: string): readonly string[] => {
+      const result = diagnoseSignature(
+        sessionWith(secret),
+        request({ signature: "not-a-signature" }),
+        NOW,
+      );
+      if (result.valid || "cause" in result) {
+        throw new Error("expected no match");
+      }
+      return result.checked;
+    };
+    const plain = checkedWith(SECRET);
+    expect(plain).toContain("secret-base64-decoded");
+    expect(plain).toContain("secret-hex-decoded");
+    expect(checkedWith(BASE64_SECRET)).toEqual(plain);
+    expect(checkedWith(HEX_SECRET)).toEqual(plain);
+  });
+
   describe("timestamp window", () => {
     const signedAt = (seconds: number): string =>
       new Date(NOW.getTime() - seconds * 1000).toISOString();

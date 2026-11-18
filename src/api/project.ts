@@ -31,13 +31,13 @@ function merge(left: unknown, right: unknown): unknown {
   }
   if (isRecord(left) && isRecord(right)) {
     const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    // Own keys only, and a null kept: a data key may be named "constructor", and null is a value.
     return Object.fromEntries(
-      [...keys].map((key) => [
-        key,
-        key in left && key in right
-          ? merge(left[key], right[key])
-          : (left[key] ?? right[key]),
-      ]),
+      [...keys].map((key) => {
+        if (!Object.hasOwn(right, key)) return [key, left[key]];
+        if (!Object.hasOwn(left, key)) return [key, right[key]];
+        return [key, merge(left[key], right[key])];
+      }),
     );
   }
   return right;
