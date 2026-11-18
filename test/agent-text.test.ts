@@ -67,20 +67,6 @@ const TOOL_CALLS: readonly {
     name: "read_api",
     args: { operation: "GET /v3/balance/wallets" },
   },
-  {
-    name: "diagnose_signature",
-    args: { kind: "request", timestamp: "1", url: "/v3/x", signature: "00" },
-  },
-  {
-    name: "diagnose_signature",
-    args: {
-      kind: "request",
-      method: "GET",
-      timestamp: "1",
-      url: "/v3/balance/wallets",
-      signature: "00",
-    },
-  },
   { name: "read_doc_page", args: { path: "no-existe" } },
   { name: "send_docs_feedback", args: { path: "sandbox", feedback: "typo" } },
 ];
@@ -205,12 +191,7 @@ afterAll(async () => {
 
 describe("names mentioned in agent-facing text", () => {
   it("collects the texts of the tools and prompts the server really has", () => {
-    for (const name of [
-      "check_connection",
-      "diagnose_signature",
-      "read_api",
-      "depurar_firma",
-    ]) {
+    for (const name of ["check_connection", "read_api", "depurar_firma"]) {
       expect(knownNames.full.has(name)).toBe(true);
     }
     for (const { name } of TOOL_CALLS) {
@@ -269,13 +250,4 @@ it("the signature prompt uses the same encoded list query as signedText", () => 
   expect(PROMPTS.find(({ name }) => name === "depurar_firma")?.text).toContain(
     example,
   );
-});
-
-it("the signature prompt sends the agent to diagnose_signature first and keeps the manual comparison", () => {
-  const text = PROMPTS.find(({ name }) => name === "depurar_firma")?.text ?? "";
-  expect(text).toContain("diagnose_signature");
-  expect(text.indexOf("diagnose_signature")).toBeLessThan(
-    text.indexOf("dryRun: true"),
-  );
-  expect(text).toContain("signedText");
 });

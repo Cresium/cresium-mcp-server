@@ -21,18 +21,14 @@ const ANSWER_TOO_LARGE = `La respuesta de Cresium superó el máximo de ${ANSWER
 // A write was already sent when its answer proved too large to read, so the agent must not assume it failed.
 const WRITE_ANSWER_TOO_LARGE = `La escritura se envió, pero la respuesta de Cresium superó el máximo de ${ANSWER_LIMIT} y se dejó de leer.`;
 
-export function toSignedText(fields: SignedFields): string {
+function toSignedText(fields: SignedFields): string {
   return `${fields.timestamp}|${fields.method}|${fields.url}|${fields.body}`;
-}
-
-/** The only HMAC-SHA256 in the server: base64 of the digest of `text` under `secret`. */
-export function signText(secret: string | Uint8Array, text: string): string {
-  return createHmac("sha256", secret).update(text).digest("base64");
 }
 
 /** HMAC-SHA256 over `timestamp|METHOD|url|body`, base64. Same formula mage verifies in `verifyPartnerSignature`. */
 export function signRequest(secret: string, fields: SignedFields): string {
-  return signText(secret, toSignedText(fields));
+  const signedText = toSignedText(fields);
+  return createHmac("sha256", secret).update(signedText).digest("base64");
 }
 
 // mage signs "" for a request without body.
