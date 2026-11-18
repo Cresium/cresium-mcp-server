@@ -1,6 +1,5 @@
 import type { PromptDef } from "./types.ts";
 
-/** Sent to the agent when it connects, after the line that names the connected environment. */
 export const SERVER_INSTRUCTIONS = [
   "Flujo recomendado:",
   "1. check_connection al empezar y cuando una tool devuelva 401.",

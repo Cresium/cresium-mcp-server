@@ -8,7 +8,6 @@ export interface ReceivedRequest {
   readonly url: string;
   readonly headers: Headers;
   readonly body: string;
-  /** Whether the signature passes mage's check: HMAC over `timestamp|METHOD|url|JSON.stringify(parsed body)`. */
   readonly signatureValid: boolean;
 }
 
@@ -26,7 +25,6 @@ export interface FakeCresium {
 
 export interface RunningApp {
   readonly url: string;
-  /** Every JSON line the app logged. */
   readonly logLines: string[];
   connect(
     environment: Environment,

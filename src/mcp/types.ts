@@ -12,7 +12,6 @@ export interface McpEndpointOptions {
   readonly logger: Logger;
 }
 
-/** A fixed task the agent offers in its prompt menu; `text` is sent as the user's message. */
 export interface PromptDef {
   readonly name: string;
   readonly title: string;

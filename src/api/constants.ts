@@ -1,6 +1,5 @@
 export const SEARCH_LIMIT = 8;
 
-/** A query word found in the id, summary or tags says more about an operation than one found in its long description. */
 export const TITLE_MATCH_SCORE = 3;
 export const DESCRIPTION_MATCH_SCORE = 1;
 

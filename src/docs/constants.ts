@@ -11,7 +11,6 @@ export const DOCS_FEEDBACK_UNKNOWN_OUTCOME =
 /** Mintlify returns 10 results, some of 20,000 characters, and offers no limit parameter. */
 export const DOCS_SEARCH_MAX_RESULTS = 5;
 
-/** Mintlify returns 10 results, some of 20,000 characters, and offers no limit parameter. */
 export const DOCS_SEARCH_RESULT_MAX_CHARS = 1_500;
 
 export const DOCS_SEARCH_PAGE_LINE = /^Page: *(.+)$/m;

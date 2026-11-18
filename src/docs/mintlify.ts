@@ -16,7 +16,6 @@ function textBlocksOf(
     .map((block) => block.text ?? "");
 }
 
-/** Calls one tool on the docs site's Mintlify MCP server and returns its text blocks. */
 export async function callMintlify(
   docsUrl: string,
   { tool, args }: MintlifyCall,

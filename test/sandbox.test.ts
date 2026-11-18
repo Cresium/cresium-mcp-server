@@ -135,7 +135,6 @@ describe.if(enabled)("sandbox end to end", () => {
   });
 
   it("signs a write with a coerced body, so Cresium answers on the merits instead of 401", async () => {
-    // amount as a string: mage coerces it before checking the signature, so it must be signed coerced or Cresium answers 401.
     const result = await call("write_api", {
       operation: "POST /v3/sandbox/deposit",
       body: { cvu: "0000003100000000000000", amount: "1" },

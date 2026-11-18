@@ -3,7 +3,6 @@ import type { CredentialsResult } from "./types.ts";
 
 const COMPANY_ID_PATTERN = /^\d+$/;
 
-/** Reads the partner's credentials from the request headers, listing every missing or malformed one. */
 export function readCredentials(headers: Headers): CredentialsResult {
   const apiKey = headers.get(CREDENTIAL_HEADERS.apiKey)?.trim() ?? "";
   const secret = headers.get(CREDENTIAL_HEADERS.secret)?.trim() ?? "";

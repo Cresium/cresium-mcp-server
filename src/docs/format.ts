@@ -15,7 +15,6 @@ function shorten(block: string): string {
   return `${block.slice(0, DOCS_SEARCH_RESULT_MAX_CHARS)}\n${note}`;
 }
 
-/** Turns the result blocks of a Mintlify search into the text `search_docs` returns. */
 export function formatDocsSearch(blocks: readonly string[]): string {
   const kept = blocks.slice(0, DOCS_SEARCH_MAX_RESULTS).map(shorten);
   if (kept.length === blocks.length) return kept.join(BLOCK_SEPARATOR);
