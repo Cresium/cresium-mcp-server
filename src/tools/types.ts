@@ -18,6 +18,10 @@ export type ToolEffect =
   | { readonly access: "read" }
   | {
       readonly access: "write";
+      /** Can change or remove data that already exists, not only add new data. Clients may ask for confirmation. */
+      readonly destructive: boolean;
+      /** Running it twice with the same input leaves the same state as running it once. */
+      readonly idempotent: boolean;
       /** Appended to a failure we cannot attribute, when the write may have been applied anyway. */
       readonly unknownOutcomeAdvice: string;
     };
@@ -28,6 +32,8 @@ export type ConnectionGuard = (ctx: ToolContext) => Promise<void>;
 export type ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> =
   ToolEffect & {
     readonly name: ToolName;
+    /** What a client shows people instead of the name. */
+    readonly title: string;
     readonly description: string;
     /** Runs only for a partner whose credentials Cresium accepts, for a tool that does not call the API itself. */
     readonly requiresVerifiedPartner?: true;

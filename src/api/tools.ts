@@ -72,6 +72,7 @@ async function runOperation(
 
 const checkConnectionTool = defineTool({
   name: "check_connection",
+  title: "Verificar la conexión con Cresium",
   description:
     "Verifica que las credenciales del partner funcionan contra la API de Cresium y dice a qué ambiente está conectado este servidor (sandbox o producción). Usala al empezar y cuando otra tool devuelva un 401: si algo falla, indica cuál de los headers revisar.",
   input: z.object({}),
@@ -96,6 +97,7 @@ function searchText(query: string): string {
 
 const searchApiTool = defineTool({
   name: "search_api",
+  title: "Buscar operaciones de la API",
   description: `Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o inglés, o por path. Usala antes de read_api o write_api. Sin query lista todas las operaciones con su id y resumen; con query devuelve las ${SEARCH_LIMIT} más relevantes con sus parámetros y el schema del body.`,
   input: z.object({
     query: z
@@ -112,6 +114,7 @@ const searchApiTool = defineTool({
 const CALL_TOOLS = {
   read: {
     name: "read_api",
+    title: "Leer de la API",
     description:
       "Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. Para escribir usá write_api. Las búsquedas y los listados devuelven objetos grandes: pedí páginas chicas con pageSize (por ejemplo 5) y acotá con filtros.",
     wrongAccess: "escribe datos. Usá write_api para ejecutarla.",
@@ -119,11 +122,14 @@ const CALL_TOOLS = {
   },
   write: {
     name: "write_api",
+    title: "Escribir en la API",
     description:
       "Ejecuta una operación de escritura (todo lo que no es GET) de la API V3 de Cresium con las credenciales del partner: crea o modifica datos reales en el ambiente conectado. Confirmá con el usuario antes de usarla en producción; con dryRun: true podés mostrarle antes el pedido exacto.",
     wrongAccess: "es de lectura. Usá read_api.",
     effect: {
       access: "write",
+      destructive: true,
+      idempotent: false,
       unknownOutcomeAdvice: API_WRITE_UNKNOWN_OUTCOME,
     },
   },
@@ -131,6 +137,7 @@ const CALL_TOOLS = {
   ToolAccess,
   {
     name: ToolName;
+    title: string;
     description: string;
     wrongAccess: string;
     effect: ToolEffect;
@@ -138,9 +145,10 @@ const CALL_TOOLS = {
 >;
 
 function createCallTool(access: ToolAccess): ToolDef {
-  const { name, description, wrongAccess, effect } = CALL_TOOLS[access];
+  const { name, title, description, wrongAccess, effect } = CALL_TOOLS[access];
   return defineTool({
     name,
+    title,
     description,
     input: callInput,
     ...effect,
