@@ -75,9 +75,13 @@ describe("fetchDocPage", () => {
     "sandbox",
     "/sandbox",
     "sandbox.mdx",
+    "sandbox.md",
+    "https://docs.cresium.com/sandbox.mdx",
+    "https://docs.cresium.com/sandbox.md",
     "https://docs.cresium.com/sandbox",
   ])("reads %s as /sandbox.md", async (path) => {
     expect(await fetchDocPage(docsUrl, path, signal)).toBe("# Sandbox");
+    expect(requested.at(-1)).toBe("/sandbox.md");
   });
 
   it("throws a UserFacingError that points to search_docs for a missing page", async () => {

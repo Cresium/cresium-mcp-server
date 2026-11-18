@@ -14,6 +14,7 @@ import { callTool } from "../../test/support/call-tool.ts";
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
 import { startApp } from "../../test/support/start-app.ts";
 import type { FakeCresium, RunningApp } from "../../test/support/types.ts";
+import { API_WRITE_UNKNOWN_OUTCOME } from "../api/constants.ts";
 import { OPERATIONS } from "../api/operations.ts";
 
 const API_KEY = "0123456789abcdef0123456789abc017";
@@ -335,6 +336,46 @@ describe("API tools", () => {
     expect(sandbox.received).toHaveLength(0);
   });
 
+  it.each([
+    ["an unknown operation", { operation: "POST /v3/nope" }],
+    ["a read operation", { operation: "GET /v3/balance/wallets" }],
+    [
+      "a missing path parameter",
+      { operation: "PUT /v3/deposit-address/{address}", body: { value: "a" } },
+    ],
+    [
+      "a path value that cannot be encoded",
+      {
+        operation: "DELETE /v3/deposit-address/{address}",
+        pathParams: { address: "\uD800" },
+      },
+    ],
+    [
+      "a body the schema rejects",
+      { operation: "POST /v3/transaction/preview", body: {} },
+    ],
+    [
+      "an unknown body field",
+      { operation: "POST /v3/deposit-address/cvu", body: { valor: "a" } },
+    ],
+    [
+      "a body for an operation that takes none",
+      {
+        operation: "DELETE /v3/deposit-address/{address}",
+        pathParams: { address: "1" },
+        body: { x: 1 },
+      },
+    ],
+  ])(
+    "write_api refuses %s before sending, without saying the write may have been applied",
+    async (_case, input) => {
+      const result = await callTool(client, "write_api", input);
+      expect(result.isError).toBe(true);
+      expect(result.text).not.toContain(API_WRITE_UNKNOWN_OUTCOME);
+      expect(sandbox.received).toHaveLength(0);
+    },
+  );
+
   it("warns the agent that a write answered with a 5xx may have been applied", async () => {
     sandbox.reply({ status: 504, body: '{"error":"GATEWAY_TIMEOUT"}' });
     const result = await callTool(client, "write_api", {
@@ -421,7 +462,7 @@ describe("connection, dry run and tracing", () => {
     expect(result.text).toContain(hint);
   });
 
-  it("a default transaction search answer of realistic size stays under 50,000 characters", async () => {
+  it("returns the upstream transaction listing unchanged", async () => {
     const items = Array.from({ length: 10 }, (_, index) => ({
       id: index,
       description: "x".repeat(3_000),
@@ -432,7 +473,6 @@ describe("connection, dry run and tracing", () => {
       operation: "GET /v3/transaction/search",
     });
     expect(result.isError).toBe(false);
-    expect(result.text.length).toBeLessThan(50_000);
     expect(result.text).toBe(JSON.stringify(sent));
     expect(client.getInstructions()?.length).toBeLessThan(1_500);
   });

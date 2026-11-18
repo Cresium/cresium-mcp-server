@@ -1,12 +1,9 @@
-import { afterAll, beforeEach, describe, expect, it } from "bun:test";
-import * as z from "zod";
+import { afterAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
 
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
 import { UserFacingError } from "../errors.ts";
 import { createLogger } from "../logger.ts";
 import type { Environment, PartnerCredentials } from "../partner/types.ts";
-import { defineTool } from "../tools/define.ts";
-import { runTool } from "../tools/run.ts";
 import type { ToolContext } from "../tools/types.ts";
 import { createConnectionGuard } from "./connection.ts";
 
@@ -21,21 +18,8 @@ const UNAUTHORIZED_REPLY = {
   body: '{"code":401,"error":"UNAUTHORIZED","message":"Invalid signature when checking partner authentication"}',
 } as const;
 const OK_REPLY = { status: 200, body: '{"data":true}' } as const;
-const EXPIRED_TTL_MS = 0;
 
 const cresium = startFakeCresium(SECRET);
-let toolRuns = 0;
-const guardedTool = defineTool({
-  name: "test_guarded",
-  description: "needs a verified partner",
-  input: z.object({}),
-  access: "read",
-  requiresVerifiedPartner: true,
-  run: () => {
-    toolRuns += 1;
-    return Promise.resolve("# Sandbox");
-  },
-});
 const logger = createLogger("silent", { write: () => undefined });
 
 afterAll(async () => {
@@ -44,7 +28,6 @@ afterAll(async () => {
 
 beforeEach(() => {
   cresium.received.length = 0;
-  toolRuns = 0;
   cresium.reply(OK_REPLY);
 });
 
@@ -63,63 +46,63 @@ function contextFor(
   };
 }
 
-function guardedRunner(ttlMs?: number) {
+function guard(ttlMs?: number) {
   const ensureConnected = createConnectionGuard(ttlMs);
-  return async (
+  return (
     credentials: PartnerCredentials,
     environment?: Environment,
-  ): Promise<string> => {
-    const result = await runTool(
-      {
-        tool: guardedTool,
-        input: {},
-        context: contextFor(credentials, environment),
-      },
-      { timeoutMs: 5000, ensureConnected },
-    );
-    const [first] = result.content;
-    return first?.type === "text" ? first.text : "";
-  };
+  ): Promise<void> => ensureConnected(contextFor(credentials, environment));
 }
 
 describe("connection guard", () => {
   it("does not remember a failure", async () => {
-    const run = guardedRunner();
+    const run = guard();
     cresium.reply(UNAUTHORIZED_REPLY);
-    await run(VALID);
+    const error: unknown = await run(VALID).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(UserFacingError);
     cresium.reply(OK_REPLY);
-    expect(await run(VALID)).toBe("# Sandbox");
+    await run(VALID);
     expect(cresium.received).toHaveLength(2);
   });
 
   it("runs for valid credentials and verifies them once", async () => {
-    const run = guardedRunner();
-    expect(await run(VALID)).toBe("# Sandbox");
-    expect(await run(VALID)).toBe("# Sandbox");
+    const run = guard();
+    await run(VALID);
+    await run(VALID);
     expect(cresium.received).toHaveLength(1);
     expect(cresium.received[0]?.signatureValid).toBe(true);
-    expect(toolRuns).toBe(2);
   });
 
   it("verifies again once the remembered success has expired", async () => {
-    const run = guardedRunner(EXPIRED_TTL_MS);
-    await run(VALID);
-    await run(VALID);
-    expect(cresium.received).toHaveLength(2);
+    const clock = spyOn(Date, "now").mockReturnValue(1_000);
+    try {
+      const run = guard(100);
+      await run(VALID);
+      clock.mockReturnValue(1_099);
+      await run(VALID);
+      expect(cresium.received).toHaveLength(1);
+      clock.mockReturnValue(1_100);
+      await run(VALID);
+      expect(cresium.received).toHaveLength(2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("rejects a wrong secret for a key that was already verified", async () => {
-    const run = guardedRunner();
+    const run = guard();
     await run(VALID);
     cresium.reply(UNAUTHORIZED_REPLY);
-    const text = await run({ ...VALID, secret: "guess" });
-    expect(text).toContain("x-api-secret");
-    expect(toolRuns).toBe(1);
+    const error: unknown = await run({ ...VALID, secret: "guess" }).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(UserFacingError);
+    expect(String(error)).toContain("x-api-secret");
     expect(cresium.received).toHaveLength(2);
   });
 
   it("verifies credentials again the first time they are used on another environment", async () => {
-    const run = guardedRunner();
+    const run = guard();
     await run(VALID, "sandbox");
     await run(VALID, "production");
     await run(VALID, "production");
@@ -127,14 +110,14 @@ describe("connection guard", () => {
   });
 
   it("verifies again for a different API key with the same secret", async () => {
-    const run = guardedRunner();
+    const run = guard();
     await run(VALID);
     await run({ ...VALID, apiKey: "another-api-key" });
     expect(cresium.received).toHaveLength(2);
   });
 
   it("verifies again for a different company id with the same key and secret", async () => {
-    const run = guardedRunner();
+    const run = guard();
     await run(VALID);
     await run({ ...VALID, companyId: "45" });
     expect(cresium.received).toHaveLength(2);

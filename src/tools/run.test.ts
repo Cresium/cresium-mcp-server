@@ -250,6 +250,116 @@ describe("runTool", () => {
       call(failing(new Error("connect ECONNREFUSED")), {}),
       allowing(1000),
     );
-    expect(JSON.stringify(result)).not.toContain("antes de reintentar");
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "Error interno ejecutando test_fail. Quedó registrado en el log.",
+        },
+      ],
+    });
   });
+});
+
+it.each(["read", "write"] as const)(
+  "cancels a running %s and keeps write outcome advice",
+  async (access) => {
+    const started = Promise.withResolvers<undefined>();
+    const controller = new AbortController();
+    const tool = defineTool({
+      name: "test_cancel",
+      description: "cancel",
+      input: z.object({}),
+      access,
+      unknownOutcomeAdvice: WRITE_ADVICE,
+      run: () => {
+        started.resolve(undefined);
+        return new Promise<string>(() => undefined);
+      },
+    });
+    const invocation = call(tool, {});
+    const result = runTool(
+      {
+        ...invocation,
+        context: { ...invocation.context, signal: controller.signal },
+      },
+      allowing(1000),
+    );
+    await started.promise;
+    controller.abort();
+    expect(await result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `test_cancel fue cancelada.${access === "write" ? ` ${WRITE_ADVICE}` : ""}`,
+        },
+      ],
+    });
+  },
+);
+
+it("does not start a write after cancellation during the connection check", async () => {
+  const checking = Promise.withResolvers<undefined>();
+  const verified = Promise.withResolvers<undefined>();
+  const controller = new AbortController();
+  let runs = 0;
+  const tool = defineTool({
+    name: "test_guarded_write",
+    description: "cancel before sending",
+    input: z.object({}),
+    access: "write",
+    unknownOutcomeAdvice: WRITE_ADVICE,
+    requiresVerifiedPartner: true,
+    run: () => {
+      runs += 1;
+      return Promise.resolve("sent");
+    },
+  });
+  const invocation = call(tool, {});
+  const result = runTool(
+    {
+      ...invocation,
+      context: { ...invocation.context, signal: controller.signal },
+    },
+    {
+      timeoutMs: 1000,
+      ensureConnected: () => {
+        checking.resolve(undefined);
+        return verified.promise;
+      },
+    },
+  );
+  await checking.promise;
+  controller.abort();
+  expect(errorText(await result)).toBe("test_guarded_write fue cancelada.");
+  verified.resolve(undefined);
+  await verified.promise;
+  expect(runs).toBe(0);
+});
+
+it("never starts a tool for an already cancelled request", async () => {
+  let runs = 0;
+  const tool = defineTool({
+    name: "test_cancelled",
+    description: "cancelled",
+    input: z.object({}),
+    access: "write",
+    unknownOutcomeAdvice: WRITE_ADVICE,
+    run: () => {
+      runs += 1;
+      return Promise.resolve("sent");
+    },
+  });
+  const invocation = call(tool, {});
+  const result = await runTool(
+    {
+      ...invocation,
+      context: { ...invocation.context, signal: AbortSignal.abort() },
+    },
+    allowing(1000),
+  );
+  expect(errorText(result)).toBe("test_cancelled fue cancelada.");
+  expect(runs).toBe(0);
 });

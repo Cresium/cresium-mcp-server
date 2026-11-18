@@ -125,3 +125,39 @@ describe("previewRequest", () => {
     expect(preview.signedText).toBe("<x-timestamp>|GET|/v3/balance/|");
   });
 });
+
+it("aborting callCresium closes its pending upstream HTTP request", async () => {
+  const received = Promise.withResolvers<undefined>();
+  const closed = Promise.withResolvers<undefined>();
+  const server = Bun.serve({
+    port: 0,
+    fetch: (request) =>
+      new Promise<Response>((resolve) => {
+        request.signal.addEventListener(
+          "abort",
+          () => {
+            closed.resolve(undefined);
+            resolve(new Response(null));
+          },
+          { once: true },
+        );
+        received.resolve(undefined);
+      }),
+  });
+  const controller = new AbortController();
+  try {
+    const pending = callCresium(
+      { baseUrl: server.url.origin, credentials },
+      { method: "GET", url: "/v3/health/" },
+      controller.signal,
+    );
+    await received.promise;
+    controller.abort();
+    const error: unknown = await pending.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    await closed.promise;
+  } finally {
+    controller.abort();
+    await server.stop(true);
+  }
+});

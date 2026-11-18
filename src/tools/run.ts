@@ -46,24 +46,32 @@ async function execute(
   const timeout = AbortSignal.timeout(timeoutMs);
   const signal = AbortSignal.any([context.signal, timeout]);
   const runContext = { ...context, signal };
-  const run = async (): Promise<string> => {
-    if (tool.requiresVerifiedPartner) await ensureConnected(runContext);
-    return await tool.run(parsed.data, runContext);
-  };
+  let toolStarted = false;
   try {
-    const text = await Promise.race([run(), rejectOnAbort(signal)]);
+    signal.throwIfAborted();
+    if (tool.requiresVerifiedPartner) {
+      await Promise.race([ensureConnected(runContext), rejectOnAbort(signal)]);
+    }
+    signal.throwIfAborted();
+    toolStarted = true;
+    const text = await Promise.race([
+      tool.run(parsed.data, runContext),
+      rejectOnAbort(signal),
+    ]);
     return { content: [{ type: "text", text }] };
   } catch (error) {
     if (error instanceof UserFacingError) {
       return errorResult(
-        error.outcomeUnknown ? withAdvice(call, error.message) : error.message,
+        error.outcomeUnknown && toolStarted
+          ? withAdvice(call, error.message)
+          : error.message,
       );
     }
     const message = timeout.aborted
       ? `${tool.name} superó el tiempo máximo de ${timeoutMs / 1000}s.`
       : describeFailure(call, error);
     // Any failure we cannot attribute may have happened after Cresium applied the write.
-    return errorResult(withAdvice(call, message));
+    return errorResult(toolStarted ? withAdvice(call, message) : message);
   }
 }
 

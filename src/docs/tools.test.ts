@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 
 import { startFakeCresium } from "../../test/support/fake-cresium.ts";
 import { createConnectionGuard } from "../api/connection.ts";
+import { API_WRITE_UNKNOWN_OUTCOME } from "../api/constants.ts";
 import { createLogger } from "../logger.ts";
 import type { PartnerCredentials } from "../partner/types.ts";
 import { runTool } from "../tools/run.ts";
@@ -85,6 +86,35 @@ describe("docs tools", () => {
     },
   );
 
+  it("does not say the report may have been sent when checking the credentials fails", async () => {
+    const tool = createDocsTools(`http://localhost:${docs.port}`).find(
+      ({ name }) => name === "send_docs_feedback",
+    );
+    if (!tool) throw new Error("send_docs_feedback is not registered");
+    const unreachable = contextFor(VALID);
+    const result = await runTool(
+      {
+        tool,
+        input: { path: "sandbox", feedback: "typo" },
+        context: {
+          ...unreachable,
+          session: { ...unreachable.session, apiBaseUrl: "http://localhost:9" },
+        },
+      },
+      { timeoutMs: 5000, ensureConnected: createConnectionGuard() },
+    );
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "Error interno ejecutando send_docs_feedback. Quedó registrado en el log.",
+        },
+      ],
+    });
+    expect(docsRequests).toBe(0);
+  });
+
   it("gives send_docs_feedback its own advice, not the API's, when it fails for an unknown reason", async () => {
     const result = await runDocsTool(
       "send_docs_feedback",
@@ -94,6 +124,6 @@ describe("docs tools", () => {
     const text = JSON.stringify(result);
     expect(result.isError).toBe(true);
     expect(text).toContain(DOCS_FEEDBACK_UNKNOWN_OUTCOME);
-    expect(text).not.toContain("transaction");
+    expect(text).not.toContain(API_WRITE_UNKNOWN_OUTCOME);
   });
 });

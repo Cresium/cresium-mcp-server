@@ -35,14 +35,16 @@ describe("formatDocsSearch", () => {
   });
 
   it("keeps the first results and says how many were dropped", () => {
-    const pages = Array.from({ length: 10 }, (_, i) => `page-${i}`);
+    const pages = Array.from(
+      { length: DOCS_SEARCH_MAX_RESULTS + 2 },
+      (_, i) => `page-${i}`,
+    );
     const text = formatDocsSearch(pages.map((page) => result(page)));
-    expect(DOCS_SEARCH_MAX_RESULTS).toBe(5);
-    expect(text).toContain("Page: page-4");
-    expect(text).not.toContain("Page: page-5");
+    expect(text).toContain(`Page: page-${DOCS_SEARCH_MAX_RESULTS - 1}`);
+    expect(text).not.toContain(`Page: page-${DOCS_SEARCH_MAX_RESULTS}`);
     expect(
       text.endsWith(
-        "Se muestran 5 de 10 resultados. Afiná la búsqueda o leé una página con read_doc_page.",
+        `Se muestran ${DOCS_SEARCH_MAX_RESULTS} de ${pages.length} resultados. Afiná la búsqueda o leé una página con read_doc_page.`,
       ),
     ).toBe(true);
   });
