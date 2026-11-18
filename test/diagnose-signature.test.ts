@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import * as crypto from "node:crypto";
 import { createHmac } from "node:crypto";
 
 import type { Client } from "@modelcontextprotocol/client";
@@ -105,6 +106,44 @@ describe("diagnose_signature through the MCP protocol", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.text).toContain("method");
+  });
+
+  it("refuses an oversized body or url before computing any HMAC", async () => {
+    const { timestamp, url } = signedNow(SECRET);
+    const base = {
+      kind: "request",
+      timestamp,
+      method: "POST",
+      signature: "AAAA",
+    };
+    const hmacs = spyOn(crypto, "createHmac");
+    try {
+      const longBody = await callTool(client, "diagnose_signature", {
+        ...base,
+        url,
+        body: "x".repeat(65_537),
+      });
+      const longUrl = await callTool(client, "diagnose_signature", {
+        ...base,
+        url: `/${"a".repeat(4_096)}`,
+        body: "",
+      });
+      expect(longBody.isError).toBe(true);
+      expect(longBody.text).toContain("body");
+      expect(longUrl.isError).toBe(true);
+      expect(longUrl.text).toContain("url");
+      expect(hmacs).not.toHaveBeenCalled();
+
+      const atLimit = await callTool(client, "diagnose_signature", {
+        ...base,
+        url: `/${"a".repeat(4_095)}`,
+        body: "x".repeat(65_536),
+      });
+      expect(atLimit.isError).toBe(false);
+      expect(hmacs).toHaveBeenCalled();
+    } finally {
+      hmacs.mockRestore();
+    }
   });
 
   it("rejects an input that is not valid", async () => {

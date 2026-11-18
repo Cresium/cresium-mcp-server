@@ -13,3 +13,13 @@ export interface Projection {
   /** Paths that matched nothing in any item. */
   readonly unmatched: readonly string[];
 }
+
+/** The sentences of the API tools that depend on whether the connection can write. */
+export interface WriteGuidance {
+  /** Ends search_api's description: which tools to call with what it finds. */
+  readonly beforeCalling: string;
+  /** In read_api's description, where to go to write. */
+  readonly readDescription: string;
+  /** Follows the operation id when read_api is asked for a write. */
+  readonly readWrongAccess: string;
+}

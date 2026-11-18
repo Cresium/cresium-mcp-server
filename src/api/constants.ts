@@ -1,3 +1,6 @@
+import type { AccessMode } from "../tools/types.ts";
+import type { WriteGuidance } from "./types.ts";
+
 export const SEARCH_LIMIT = 8;
 
 export const TITLE_MATCH_SCORE = 3;
@@ -61,11 +64,29 @@ export const SEARCH_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
   ["account", ["cuenta"]],
   ["transaction", ["transaccion"]],
   ["invoice", ["factura", "cobrar"]],
+  ["cobro", ["pago unico"]],
+  ["cobrar", ["pago unico"]],
   ["create", ["crear"]],
   ["list", ["listar", "buscar"]],
   ["deactivate", ["baja"]],
   ["cancel", ["borrar", "baja"]],
 ]);
+
+/** What the API tools tell the agent about writing: a read-only connection has no write_api to point to. */
+export const WRITE_GUIDANCE = {
+  full: {
+    beforeCalling: "Usala antes de read_api o write_api.",
+    readDescription: "Para escribir usá write_api.",
+    readWrongAccess: "escribe datos. Usá write_api para ejecutarla.",
+  },
+  "read-only": {
+    beforeCalling: "Usala antes de read_api.",
+    readDescription:
+      "Esta conexión es de solo lectura: para escribir, conectate a la misma URL sin /read-only.",
+    readWrongAccess:
+      "escribe datos y esta conexión es de solo lectura: para ejecutarla, conectate a la misma URL sin /read-only.",
+  },
+} as const satisfies Record<AccessMode, WriteGuidance>;
 
 /** A cheap signed read every partner key can run; check_connection uses it to prove the credentials work. */
 export const CONNECTION_CHECK_OPERATION = "GET /v3/balance/wallets";
@@ -85,3 +106,7 @@ export const UNMATCHED_FIELDS_NOTE =
 /** How to receive less from read_api once an answer was cut; the runner appends it to the cut note. */
 export const READ_API_NARROWING_ADVICE =
   "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";
+
+/** Bounds diagnose_signature's inputs: it hashes them about 20 times per call, with credentials nobody verified. */
+export const DIAGNOSE_MAX_BODY_LENGTH = 65_536;
+export const DIAGNOSE_MAX_URL_LENGTH = 4_096;

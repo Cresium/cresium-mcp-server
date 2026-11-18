@@ -1,11 +1,7 @@
 import type { Logger } from "pino";
 
 import type { Environment } from "../partner/types.ts";
-import type { ConnectionGuard, ToolDef } from "../tools/types.ts";
-import type { ACCESS_MODES } from "./constants.ts";
-
-/** What a connection may do: everything its API key allows, or only reads. Chosen by the path the partner connects to. */
-export type AccessMode = (typeof ACCESS_MODES)[number];
+import type { AccessMode, ConnectionGuard, ToolDef } from "../tools/types.ts";
 
 export interface McpEndpointOptions {
   readonly tools: readonly ToolDef[];

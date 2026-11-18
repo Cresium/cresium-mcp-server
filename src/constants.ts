@@ -38,6 +38,9 @@ export const MAX_UPSTREAM_BODY_BYTES = 2 * 1024 * 1024;
 
 export const BYTES_PER_MIB = 1024 * 1024;
 
+export const UPSTREAM_ANSWER_COMPRESSED =
+  "El servidor respondió comprimido aunque se le pidió sin comprimir, y la respuesta no se leyó: descomprimida podría ocupar mucho más que el máximo.";
+
 export const USER_FACING_ERROR_NAME = "UserFacingError";
 
 /** How this server names itself to MCP peers (clients and the docs server). */

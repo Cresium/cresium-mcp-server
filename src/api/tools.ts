@@ -9,20 +9,22 @@ import { maskApiKey } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
 import { defineTool } from "../tools/define.ts";
 import type {
+  AccessMode,
   ToolAccess,
   ToolContext,
   ToolDef,
-  ToolEffect,
-  ToolName,
 } from "../tools/types.ts";
 import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
+  DIAGNOSE_MAX_BODY_LENGTH,
+  DIAGNOSE_MAX_URL_LENGTH,
   READ_API_NARROWING_ADVICE,
   SCHEMA_HINT,
   SEARCH_LIMIT,
   UNMATCHED_FIELDS_NOTE,
+  WRITE_GUIDANCE,
 } from "./constants.ts";
 import {
   accessOf,
@@ -32,6 +34,7 @@ import {
 } from "./operations.ts";
 import { projectFields } from "./project.ts";
 import { operationCallSchema } from "./schema.ts";
+import type { WriteGuidance } from "./types.ts";
 
 const callInput = operationCallSchema.extend({
   operation: z
@@ -133,21 +136,22 @@ function searchText(query: string): string {
   return JSON.stringify(found.map(describeOperation));
 }
 
-const searchApiTool = defineTool({
-  name: "search_api",
-  title: "Buscar operaciones de la API",
-  description: `Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o inglés, o por path. Usala antes de read_api o write_api. Sin query lista todas las operaciones con su id y resumen; con query devuelve las ${SEARCH_LIMIT} más relevantes con sus parámetros y el schema del body.`,
-  input: z.object({
-    query: z
-      .string()
-      .default("")
-      .describe(
-        'Palabras a buscar, por ejemplo "emitir cvu" o "transacciones".',
-      ),
-  }),
-  access: "read",
-  run: ({ query }) => Promise.resolve(searchText(query)),
-});
+const searchApiTool = (guidance: WriteGuidance) =>
+  defineTool({
+    name: "search_api",
+    title: "Buscar operaciones de la API",
+    description: `Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o inglés, o por path. ${guidance.beforeCalling} Sin query lista todas las operaciones con su id y resumen; con query devuelve las ${SEARCH_LIMIT} más relevantes con sus parámetros y el schema del body.`,
+    input: z.object({
+      query: z
+        .string()
+        .default("")
+        .describe(
+          'Palabras a buscar, por ejemplo "emitir cvu" o "transacciones".',
+        ),
+    }),
+    access: "read",
+    run: ({ query }) => Promise.resolve(searchText(query)),
+  });
 
 const diagnoseSignatureTool = defineTool({
   name: "diagnose_signature",
@@ -165,8 +169,13 @@ const diagnoseSignatureTool = defineTool({
       .describe("Obligatorio en request; un webhook es POST."),
     url: z
       .string()
+      .max(DIAGNOSE_MAX_URL_LENGTH)
       .describe("request: path con query. webhook: URL completa registrada."),
-    body: z.string().default("").describe("Body crudo; vacío si no hay."),
+    body: z
+      .string()
+      .max(DIAGNOSE_MAX_BODY_LENGTH)
+      .default("")
+      .describe("Body crudo; vacío si no hay."),
     signature: z
       .string()
       .describe("x-signature que calculó el código del partner."),
@@ -190,74 +199,61 @@ const diagnoseSignatureTool = defineTool({
   },
 });
 
-const CALL_TOOLS = {
-  read: {
-    name: "read_api",
-    title: "Leer de la API",
-    description:
-      "Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. Para escribir usá write_api. Las búsquedas y los listados devuelven objetos grandes: pedí páginas chicas con pageSize (por ejemplo 5) y acotá con filtros.",
-    wrongAccess: "escribe datos. Usá write_api para ejecutarla.",
-    effect: { access: "read" },
-  },
-  write: {
-    name: "write_api",
-    title: "Escribir en la API",
-    description:
-      "Ejecuta una operación de escritura (todo lo que no es GET) de la API V3 de Cresium con las credenciales del partner: crea o modifica datos reales en el ambiente conectado. Confirmá con el usuario antes de usarla en producción; con dryRun: true podés mostrarle antes el pedido exacto.",
-    wrongAccess: "es de lectura. Usá read_api.",
-    effect: {
-      access: "write",
-      destructive: true,
-      idempotent: false,
-      unknownOutcomeAdvice: API_WRITE_UNKNOWN_OUTCOME,
-    },
-  },
-} as const satisfies Record<
-  ToolAccess,
-  {
-    name: ToolName;
-    title: string;
-    description: string;
-    wrongAccess: string;
-    effect: ToolEffect;
-  }
->;
-
-function operationFor(access: ToolAccess, id: string): Operation {
+/** The operation `id`, refused with `wrongAccess` after its id when it is not a `access` operation. */
+function operationFor(
+  id: string,
+  access: ToolAccess,
+  wrongAccess: string,
+): Operation {
   const operation = findOperation(id);
   if (accessOf(operation) !== access) {
-    throw new UserFacingError(
-      `${operation.id} ${CALL_TOOLS[access].wrongAccess}`,
-    );
+    throw new UserFacingError(`${operation.id} ${wrongAccess}`);
   }
   return operation;
 }
 
-const readApiTool = defineTool({
-  name: CALL_TOOLS.read.name,
-  title: CALL_TOOLS.read.title,
-  description: CALL_TOOLS.read.description,
-  narrowingAdvice: READ_API_NARROWING_ADVICE,
-  input: readInput,
-  ...CALL_TOOLS.read.effect,
-  run: async (input, ctx) =>
-    await runOperation(input, operationFor("read", input.operation), ctx),
-});
+const readApiTool = (guidance: WriteGuidance) =>
+  defineTool({
+    name: "read_api",
+    title: "Leer de la API",
+    description: `Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. ${guidance.readDescription} Las búsquedas y los listados devuelven objetos grandes: pedí páginas chicas con pageSize (por ejemplo 5) y acotá con filtros.`,
+    narrowingAdvice: READ_API_NARROWING_ADVICE,
+    input: readInput,
+    access: "read",
+    run: async (input, ctx) =>
+      await runOperation(
+        input,
+        operationFor(input.operation, "read", guidance.readWrongAccess),
+        ctx,
+      ),
+  });
 
 const writeApiTool = defineTool({
-  name: CALL_TOOLS.write.name,
-  title: CALL_TOOLS.write.title,
-  description: CALL_TOOLS.write.description,
+  name: "write_api",
+  title: "Escribir en la API",
+  description:
+    "Ejecuta una operación de escritura (todo lo que no es GET) de la API V3 de Cresium con las credenciales del partner: crea o modifica datos reales en el ambiente conectado. Confirmá con el usuario antes de usarla en producción; con dryRun: true podés mostrarle antes el pedido exacto.",
   input: callInput,
-  ...CALL_TOOLS.write.effect,
+  access: "write",
+  destructive: true,
+  idempotent: false,
+  unknownOutcomeAdvice: API_WRITE_UNKNOWN_OUTCOME,
   run: async (input, ctx) =>
-    await runOperation(input, operationFor("write", input.operation), ctx),
+    await runOperation(
+      input,
+      operationFor(input.operation, "write", "es de lectura. Usá read_api."),
+      ctx,
+    ),
 });
 
-export const API_TOOLS: readonly ToolDef[] = [
-  checkConnectionTool,
-  searchApiTool,
-  diagnoseSignatureTool,
-  readApiTool,
-  writeApiTool,
-];
+/** The API tools as a connection with `mode` describes them; the MCP layer leaves out the write tool on a read-only one. */
+export function createApiTools(mode: AccessMode): readonly ToolDef[] {
+  const guidance = WRITE_GUIDANCE[mode];
+  return [
+    checkConnectionTool,
+    searchApiTool(guidance),
+    diagnoseSignatureTool,
+    readApiTool(guidance),
+    writeApiTool,
+  ];
+}

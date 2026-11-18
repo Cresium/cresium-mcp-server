@@ -96,6 +96,8 @@ for (const route of READ_ONLY_ROUTES) {
         operation: "POST /v3/deposit-address/cvu",
       });
       expect(result.isError).toBe(true);
+      expect(result.text).toContain("solo lectura");
+      expect(result.text).toContain("sin /read-only");
       expect(upstream.received).toHaveLength(0);
       await client.close();
     });
