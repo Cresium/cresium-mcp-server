@@ -13,6 +13,7 @@ import type {
   ToolDef,
 } from "../tools/types.ts";
 import { callApi } from "./call.ts";
+import { confirmationFor } from "./confirmation.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
@@ -20,6 +21,7 @@ import {
   SCHEMA_HINT,
   SEARCH_LIMIT,
   UNMATCHED_FIELDS_NOTE,
+  WRITE_API_WRONG_ACCESS,
   WRITE_GUIDANCE,
 } from "./constants.ts";
 import {
@@ -89,6 +91,13 @@ function answerText(
     : `${text}\n\n${UNMATCHED_FIELDS_NOTE} ${unmatched.join(", ")}`;
 }
 
+function withSchemaHint(error: unknown): never {
+  if (error instanceof UserFacingError && error.schemaViolation) {
+    throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
+  }
+  throw error;
+}
+
 async function runOperation(
   input: ApiCallRequest & { readonly fields?: readonly string[] | undefined },
   operation: Operation,
@@ -100,10 +109,7 @@ async function runOperation(
     }
     return answerText(await callApi(ctx, operation, input), input.fields);
   } catch (error) {
-    if (error instanceof UserFacingError && error.schemaViolation) {
-      throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
-    }
-    throw error;
+    return withSchemaHint(error);
   }
 }
 
@@ -188,10 +194,28 @@ const writeApiTool = defineTool({
   destructive: true,
   idempotent: false,
   unknownOutcomeAdvice: API_WRITE_UNKNOWN_OUTCOME,
+  confirmation: {
+    request: (input, session) => {
+      if (input.dryRun) return;
+      try {
+        const operation = operationFor(
+          input.operation,
+          "write",
+          WRITE_API_WRONG_ACCESS,
+        );
+        return confirmationFor(
+          operation.id,
+          previewOperation(session, operation, input),
+        );
+      } catch (error) {
+        return withSchemaHint(error);
+      }
+    },
+  },
   run: async (input, ctx) =>
     await runOperation(
       input,
-      operationFor(input.operation, "write", "es de lectura. Usá read_api."),
+      operationFor(input.operation, "write", WRITE_API_WRONG_ACCESS),
       ctx,
     ),
 });

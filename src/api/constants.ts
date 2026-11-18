@@ -88,6 +88,9 @@ export const WRITE_GUIDANCE = {
   },
 } as const satisfies Record<AccessMode, WriteGuidance>;
 
+/** Follows the operation id when write_api is asked for a read. */
+export const WRITE_API_WRONG_ACCESS = "es de lectura. Usá read_api.";
+
 /** A cheap signed read every partner key can run; check_connection uses it to prove the credentials work. */
 export const CONNECTION_CHECK_OPERATION = "GET /v3/balance/wallets";
 
@@ -106,3 +109,16 @@ export const UNMATCHED_FIELDS_NOTE =
 /** How to receive less from read_api once an answer was cut; the runner appends it to the cut note. */
 export const READ_API_NARROWING_ADVICE =
   "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";
+
+/** The most characters of one text value a confirmation shows; a longer one is cut alone and its size said. */
+export const CONFIRMATION_SHOWN_CHARS = 500;
+
+/** Past this a person accepts without reading it all, so the call is refused instead of asked. */
+export const CONFIRMATION_MAX_CHARS = 10_000;
+
+export const CONFIRMATION_TOO_LARGE =
+  "Esta escritura es demasiado grande para mostrársela completa al usuario y pedirle confirmación en esta conexión, así que no se envió nada a Cresium. Dividila en pedidos más chicos.";
+
+/** Without a body, what the write changes lives in Cresium, for example the transaction an id names. */
+export const CONFIRMATION_NO_BODY_NOTE =
+  "Este pedido no lleva body: los datos sobre los que actúa (por ejemplo, el monto y el destino de esa transacción) no se muestran acá. Revisalos antes de aceptar.";

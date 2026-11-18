@@ -12,3 +12,12 @@ export const MAX_RESULT_CHARS = 50_000;
 /** For a tool that sets no narrowingAdvice of its own. */
 export const DEFAULT_NARROWING_ADVICE =
   "Repetí el pedido pidiendo menos datos.";
+
+/** How long a person has to answer before the confirmation state expires and the call must be made again. */
+export const CONFIRMATION_TTL_SECONDS = 300;
+
+/** The name of the one question a confirmation asks, which the client answers under the same name. */
+export const CONFIRMATION_INPUT_KEY = "confirmar";
+
+export const NOT_CONFIRMED_MESSAGE =
+  "El usuario no confirmó la escritura, así que no se envió nada a Cresium. No la repitas salvo que el usuario te lo pida.";

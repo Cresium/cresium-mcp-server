@@ -14,6 +14,8 @@ export interface Config {
   /** Proxies in front of this server whose X-Forwarded-For entry is believed; 0 uses the socket address. */
   readonly trustedProxyHops: number;
   readonly logLevel: LogLevel;
+  /** Signs the state of a production write waiting for the person's answer; the same on every pod. Undefined turns the confirmation off. */
+  readonly confirmationSecret: string | undefined;
   /** Logged once at startup: settings that run but probably are not what the deploy meant. */
   readonly warnings: readonly string[];
 }

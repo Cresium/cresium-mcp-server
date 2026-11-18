@@ -1,6 +1,8 @@
 import * as z from "zod";
 
 import {
+  CONFIRMATION_SECRET_MIN_LENGTH,
+  CONFIRMATION_SECRET_UNSET_WARNING,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
   LOG_LEVELS,
   LOOPBACK_HOSTNAMES,
@@ -34,6 +36,11 @@ const envSchema = z.object({
     .default(DEFAULT_RATE_LIMIT_PER_MINUTE),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+  // An empty value (a Doppler secret left blank) counts as not set.
+  CONFIRMATION_SECRET: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(CONFIRMATION_SECRET_MIN_LENGTH).optional(),
+  ),
   NODE_ENV: z.string().optional(),
 });
 
@@ -46,6 +53,10 @@ function warningsFor(e: Env): readonly string[] {
       // TRUSTED_PROXY_HOPS keeps 0 as default: a wrong positive value would let callers forge their IP silently.
       applies: e.NODE_ENV === "production" && e.TRUSTED_PROXY_HOPS === 0,
       warning: SHARED_RATE_LIMIT_WARNING,
+    },
+    {
+      applies: !e.CONFIRMATION_SECRET,
+      warning: CONFIRMATION_SECRET_UNSET_WARNING,
     },
   ].flatMap(({ applies, warning }) => (applies ? [warning] : []));
 }
@@ -68,6 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
     trustedProxyHops: e.TRUSTED_PROXY_HOPS,
     logLevel: e.LOG_LEVEL,
+    confirmationSecret: e.CONFIRMATION_SECRET,
     warnings: warningsFor(e),
   };
 }

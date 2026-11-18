@@ -9,6 +9,9 @@ const VALID = {
   CRESIUM_DOCS_URL: "https://docs.cresium.com",
 };
 
+/** With the confirmation secret set, so its own warning stays out of the way. */
+const CONFIRMING = { ...VALID, CONFIRMATION_SECRET: "c".repeat(32) };
+
 describe("loadConfig", () => {
   it("maps each environment to its API and trims trailing slashes", () => {
     const config = loadConfig(VALID);
@@ -41,7 +44,7 @@ describe("loadConfig", () => {
   });
 
   it("warns once in production when no proxy hop is trusted, since every caller then shares one limit", () => {
-    const { warnings } = loadConfig({ ...VALID, NODE_ENV: "production" });
+    const { warnings } = loadConfig({ ...CONFIRMING, NODE_ENV: "production" });
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("TRUSTED_PROXY_HOPS");
     expect(warnings[0]).toContain("one rate limit");
@@ -55,7 +58,13 @@ describe("loadConfig", () => {
     ["outside production", { NODE_ENV: "development" }],
     ["without NODE_ENV", {}],
   ])("does not warn about the proxy hops %s", (_case, env) => {
-    expect(loadConfig({ ...VALID, ...env }).warnings).toEqual([]);
+    expect(loadConfig({ ...CONFIRMING, ...env }).warnings).toEqual([]);
+  });
+
+  it("warns once when CONFIRMATION_SECRET is not set, since production writes then run unconfirmed", () => {
+    const { warnings } = loadConfig({ ...VALID, TRUSTED_PROXY_HOPS: "1" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("CONFIRMATION_SECRET");
   });
 
   it.each([
@@ -76,5 +85,22 @@ describe("loadConfig", () => {
         CRESIUM_SANDBOX_API_URL: "http://api.develop.cresium.app",
       }),
     ).toThrow(/https/);
+  });
+
+  it("leaves the confirmation secret unset, and treats an empty one as unset", () => {
+    expect(loadConfig(VALID).confirmationSecret).toBeUndefined();
+    expect(
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: "" }).confirmationSecret,
+    ).toBeUndefined();
+  });
+
+  it("reads a confirmation secret of at least 32 characters and refuses a shorter one", () => {
+    const secret = "s".repeat(32);
+    expect(
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: secret }).confirmationSecret,
+    ).toBe(secret);
+    expect(() =>
+      loadConfig({ ...VALID, CONFIRMATION_SECRET: "short" }),
+    ).toThrow(/CONFIRMATION_SECRET/);
   });
 });
