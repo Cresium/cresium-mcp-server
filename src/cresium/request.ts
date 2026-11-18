@@ -44,14 +44,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value != null && !Array.isArray(value);
 }
 
-// The catalogue's only combinator; its branches are read as one schema.
-function branchesOf(schema: JsonSchema): readonly JsonSchema[] {
-  const { anyOf } = schema;
-  return [schema, ...(Array.isArray(anyOf) ? anyOf.filter(isRecord) : [])];
-}
-
 function allowsAnyKey(additionalProperties: unknown): boolean {
   return additionalProperties === true || isRecord(additionalProperties);
+}
+
+// A branch whose `type` cannot describe the value has no say on its fields; Ajv rejects a value no branch admits.
+function admits({ type }: JsonSchema, value: unknown): boolean {
+  if (type == null) return true;
+  const kind = Array.isArray(value) ? "array" : "object";
+  return Array.isArray(type) ? type.includes(kind) : type === kind;
+}
+
+/** The fields that every branch reports, with the fields any of them knows. */
+function rejectedByEvery(
+  reports: readonly (readonly UnknownField[])[],
+): readonly UnknownField[] {
+  const [first = [], ...others] = reports;
+  return first.flatMap((field) => {
+    const same = others.flatMap((report) =>
+      report.filter(({ path }) => path === field.path),
+    );
+    if (same.length < others.length) return [];
+    const known = [field, ...same].flatMap((each) => each.known);
+    return [{ ...field, known: [...new Set(known)] }];
+  });
 }
 
 function unknownFieldsIn(
@@ -59,27 +75,29 @@ function unknownFieldsIn(
   value: unknown,
   path: string,
 ): readonly UnknownField[] {
-  const branches = branchesOf(schema);
+  if (!Array.isArray(value) && !isRecord(value)) return [];
+  const { anyOf, ...shared } = schema;
+  // anyOf is the catalogue's only combinator: a field is unknown only if every branch that fits the value rejects it.
+  if (Array.isArray(anyOf)) {
+    const reports = anyOf
+      .filter(isRecord)
+      .map((branch) => ({ ...shared, ...branch }))
+      .filter((branch) => admits(branch, value))
+      .map((branch) => unknownFieldsIn(branch, value, path));
+    return rejectedByEvery(reports);
+  }
+  const { items, properties, additionalProperties } = shared;
   if (Array.isArray(value)) {
-    const itemSchemas = branches.map(({ items }) => items).filter(isRecord);
+    if (!isRecord(items)) return [];
     return value.flatMap((item, index) =>
-      itemSchemas.flatMap((itemSchema) =>
-        unknownFieldsIn(itemSchema, item, `${path}[${index}]`),
-      ),
+      unknownFieldsIn(items, item, `${path}[${index}]`),
     );
   }
-  if (!isRecord(value)) return [];
   const declared = new Map(
-    branches
-      .map(({ properties }) => properties)
-      .filter(isRecord)
-      .flatMap((properties) => Object.entries(properties)),
+    isRecord(properties) ? Object.entries(properties) : [],
   );
   const flagsExtraKeys =
-    declared.size > 0 &&
-    !branches.some(({ additionalProperties }) =>
-      allowsAnyKey(additionalProperties),
-    );
+    declared.size > 0 && !allowsAnyKey(additionalProperties);
   return Object.entries(value).flatMap(([field, inner]) => {
     const fieldPath = path ? `${path}.${field}` : field;
     const fieldSchema = declared.get(field);
