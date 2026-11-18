@@ -60,11 +60,21 @@ describe("searchOperations", () => {
     );
   });
 
-  it("ranks a match in the id, summary or tags above one in the description", () => {
-    const ids = searchOperations("transaccion", 6).map(
-      (operation) => operation.id,
+  it("does not return an operation that only mentions the word in its description", () => {
+    const [described] = OPERATIONS.filter(({ description }) =>
+      description.includes("webhook"),
     );
-    expect(ids.every((id) => id.includes("/v3/transaction/"))).toBe(true);
+    expect(described).toBeDefined();
+    expect(searchOperations("webhook", 8)).toEqual([]);
+  });
+
+  it("ranks the operation whose summary has the word above one that only has it as a tag", () => {
+    const [first] = searchOperations("comisiones", 3);
+    expect(first?.id).toBe("GET /v3/company-tax/{key}");
+  });
+
+  it("ignores words that say nothing, like articles", () => {
+    expect(searchOperations("de un el", 5)).toEqual([]);
   });
 
   it.each([
