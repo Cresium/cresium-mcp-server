@@ -1,34 +1,20 @@
+import type { z } from "zod";
+
 import type {
   Environment,
   PartnerCredentials,
   PartnerSession,
 } from "../partner/types.ts";
 import type { HTTP_METHODS } from "./constants.ts";
+import type { operationSchema } from "./schema.ts";
 
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 
-export type JsonSchema = Readonly<Record<string, unknown>>;
+export type Operation = z.infer<typeof operationSchema>;
 
-export interface OperationParameter {
-  readonly name: string;
-  readonly in: "path" | "query";
-  readonly required: boolean;
-  readonly description: string;
-  readonly schema: unknown;
-}
+export type OperationParameter = Operation["parameters"][number];
 
-/** One V3 endpoint, trimmed from Cresium/bible's OpenAPI by scripts/generate-spec.ts. */
-export interface Operation {
-  /** `METHOD /path`, e.g. `GET /v3/balance/`. Agents pass it back to the read/write tools. */
-  readonly id: string;
-  readonly method: HttpMethod;
-  readonly path: string;
-  readonly summary: string;
-  readonly description: string;
-  readonly tags: readonly string[];
-  readonly parameters: readonly OperationParameter[];
-  readonly body: JsonSchema | null;
-}
+export type JsonSchema = NonNullable<Operation["body"]>;
 
 export type QueryValue =
   string | number | boolean | readonly (string | number)[];

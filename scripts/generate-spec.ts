@@ -83,15 +83,19 @@ function toOperation(
     summary: op.summary ?? "",
     description: op.description ?? "",
     tags: op.tags ?? [],
-    parameters: (op.parameters ?? [])
-      .filter((p) => p.in === "path" || p.in === "query")
-      .map((p) => ({
-        name: p.name,
-        in: p.in as "path" | "query",
-        required: p.required ?? p.in === "path",
-        description: p.description ?? "",
-        schema: stripDocOnlyKeys(p.schema ?? {}),
-      })),
+    parameters: (op.parameters ?? []).flatMap((p) =>
+      p.in === "path" || p.in === "query"
+        ? [
+            {
+              name: p.name,
+              in: p.in,
+              required: p.required ?? p.in === "path",
+              description: p.description ?? "",
+              schema: toJsonSchema(stripDocOnlyKeys(p.schema ?? {})) ?? {},
+            },
+          ]
+        : [],
+    ),
     body: toJsonSchema(stripDocOnlyKeys(jsonBody?.schema)),
   };
 }

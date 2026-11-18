@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { HTTP_METHODS } from "../cresium/constants.ts";
+import { operationSchema } from "../cresium/schema.ts";
 import type { Operation } from "../cresium/types.ts";
 import { UserFacingError } from "../errors.ts";
 import type { ToolAccess } from "../tools/types.ts";
@@ -11,25 +11,6 @@ import {
 } from "./constants.ts";
 import operationsJson from "./operations.json" with { type: "json" };
 import type { SearchableOperation } from "./types.ts";
-
-const operationSchema: z.ZodType<Operation> = z.object({
-  id: z.string(),
-  method: z.enum(HTTP_METHODS),
-  path: z.string(),
-  summary: z.string(),
-  description: z.string(),
-  tags: z.array(z.string()),
-  parameters: z.array(
-    z.object({
-      name: z.string(),
-      in: z.enum(["path", "query"]),
-      required: z.boolean(),
-      description: z.string(),
-      schema: z.unknown(),
-    }),
-  ),
-  body: z.record(z.string(), z.unknown()).nullable(),
-});
 
 // Parsed at startup so a malformed regeneration of operations.json fails loudly instead of at call time.
 export const OPERATIONS: readonly Operation[] = z
