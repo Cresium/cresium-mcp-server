@@ -19,6 +19,8 @@ import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
+  DIAGNOSE_MAX_BODY_LENGTH,
+  DIAGNOSE_MAX_URL_LENGTH,
   READ_API_NARROWING_ADVICE,
   SCHEMA_HINT,
   SEARCH_LIMIT,
@@ -165,8 +167,13 @@ const diagnoseSignatureTool = defineTool({
       .describe("Obligatorio en request; un webhook es POST."),
     url: z
       .string()
+      .max(DIAGNOSE_MAX_URL_LENGTH)
       .describe("request: path con query. webhook: URL completa registrada."),
-    body: z.string().default("").describe("Body crudo; vacío si no hay."),
+    body: z
+      .string()
+      .max(DIAGNOSE_MAX_BODY_LENGTH)
+      .default("")
+      .describe("Body crudo; vacío si no hay."),
     signature: z
       .string()
       .describe("x-signature que calculó el código del partner."),
