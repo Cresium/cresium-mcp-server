@@ -257,6 +257,19 @@ describe("a production write put to the person", () => {
     await client.close();
   });
 
+  it("warns the person that a write without body acts on data it cannot show", async () => {
+    const { client, asked } = await answering("decline");
+    await callTool(client, "write_api", {
+      operation: "PUT /v3/transaction/confirm/{id}",
+      pathParams: { id: 98765 },
+    });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain("/v3/transaction/confirm/98765");
+    expect(asked[0]).toContain("no lleva body");
+    expect(upstream.received).toHaveLength(0);
+    await client.close();
+  });
+
   it("answers a call the API would refuse as it does without confirmation, before asking", async () => {
     const { client, asked } = await answering("accept");
     const result = await callTool(client, "write_api", {

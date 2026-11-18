@@ -114,6 +114,20 @@ describe("confirmationFor", () => {
     expect(refusal.outcomeUnknown).toBe(false);
   });
 
+  it("tells the person that a write without body acts on data the message cannot show", () => {
+    const { message } = confirmationFor("PUT /v3/transaction/confirm/{id}", {
+      ...PREVIEW,
+      method: "PUT",
+      url: "https://api.cresium.app/v3/transaction/confirm/98765",
+      body: null,
+    });
+    expect(message).toContain("Body: (sin body)");
+    expect(message).toContain("no lleva body");
+    expect(message).toContain("el monto y el destino");
+    const withBody = confirmationFor("POST /v3/deposit-address/cvu", PREVIEW);
+    expect(withBody.message).not.toContain("no lleva body");
+  });
+
   it("binds the full body, not the shortened one it shows", () => {
     const body = { value: "a".repeat(5_000), other: "b" };
     const shown = confirmationFor("POST /v3/deposit-address/cvu", {

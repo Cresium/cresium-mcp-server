@@ -4,6 +4,7 @@ import { ENVIRONMENT_LABELS } from "../partner/constants.ts";
 import type { ConfirmationRequest } from "../tools/types.ts";
 import {
   CONFIRMATION_MAX_CHARS,
+  CONFIRMATION_NO_BODY_NOTE,
   CONFIRMATION_SHOWN_CHARS,
   CONFIRMATION_TOO_LARGE,
 } from "./constants.ts";
@@ -48,7 +49,9 @@ export function confirmationFor(
     `Operación: ${operationId}`,
     `Método: ${method}`,
     `URL: ${url}`,
-    `Body: ${body == null ? "(sin body)" : JSON.stringify(shownBody(body))}`,
+    ...(body == null
+      ? ["Body: (sin body)", CONFIRMATION_NO_BODY_NOTE]
+      : [`Body: ${JSON.stringify(shownBody(body))}`]),
     "Aceptá para enviarla tal cual; si la rechazás o cancelás no se envía nada.",
   ].join("\n");
   if (message.length > CONFIRMATION_MAX_CHARS) {
