@@ -210,6 +210,82 @@ describe("toCresiumRequest", () => {
       expect(request.body).toEqual({ cvu: "1", libre: "2" });
     });
 
+    describe("with anyOf branches", () => {
+      const byDestination = compileOperation({
+        ...deposit,
+        body: {
+          anyOf: [
+            {
+              type: "object",
+              properties: {
+                destination: {
+                  type: "object",
+                  properties: { cvu: { type: "string" } },
+                },
+              },
+            },
+            {
+              type: "object",
+              properties: {
+                destination: {
+                  type: "object",
+                  properties: { alias: { type: "string" } },
+                },
+              },
+            },
+          ],
+        },
+      });
+      const listOfEither = compileOperation({
+        ...deposit,
+        body: {
+          anyOf: [
+            {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { cvu: { type: "string" } },
+              },
+            },
+            {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { alias: { type: "string" } },
+              },
+            },
+          ],
+        },
+      });
+
+      it("accepts a field that only the first branch declaring its parent knows", () => {
+        const request = toCresiumRequest(byDestination, {
+          ...NO_PARAMS,
+          body: { destination: { cvu: "1" } },
+        });
+        expect(request.body).toEqual({ destination: { cvu: "1" } });
+      });
+
+      it("accepts a list item that only one branch's items know", () => {
+        const request = toCresiumRequest(listOfEither, {
+          ...NO_PARAMS,
+          body: [{ cvu: "1" }],
+        });
+        expect(request.body).toEqual([{ cvu: "1" }]);
+      });
+
+      it("still rejects a field every branch rejects, naming the fields any branch knows", () => {
+        const build = (): unknown =>
+          toCresiumRequest(byDestination, {
+            ...NO_PARAMS,
+            body: { destination: { cvu: "1", cvv: "2" } },
+          });
+        expect(build).toThrow(
+          `Body inválido para ${deposit.id}: la API no conoce destination.cvv. Campos válidos en destination: cvu, alias.`,
+        );
+      });
+    });
+
     it.each(OPERATIONS.filter(({ body }) => body != null).map(({ id }) => id))(
       "accepts a body for %s built from every field of its own schema",
       (id) => {

@@ -132,6 +132,39 @@ describe("HTTP", () => {
       keepalive: false,
     });
     expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: `Payload Too Large: Request body must not exceed ${DEFAULT_MAX_REQUEST_BODY_SIZE} bytes`,
+      },
+      id: null,
+    });
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 400 - answers a malformed JSON body with the SDK's own parse error", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: LEGACY_POST_HEADERS,
+      body: '{"jsonrpc": "2.0",',
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      error: { code: -32700, message: "Parse error: Invalid JSON" },
+      id: null,
+    });
+    expect(production.received).toHaveLength(0);
+  });
+
+  it("[POST] /production - 415 - leaves a body that is not JSON to the SDK", async () => {
+    const response = await fetch(`${app.url}/production`, {
+      method: "POST",
+      headers: { ...LEGACY_POST_HEADERS, "content-type": "text/plain" },
+      body: "[1, 2]",
+    });
+    expect(response.status).toBe(415);
     expect(production.received).toHaveLength(0);
   });
 
@@ -327,6 +360,21 @@ describe("API tools", () => {
     expect(sandbox.received).toHaveLength(0);
   });
 
+  it.each([false, true])(
+    "points at search_api when a body breaks the schema (dry run: %p)",
+    async (dryRun) => {
+      const result = await callTool(client, "write_api", {
+        operation: "POST /v3/transaction/preview",
+        body: { toId: 5 },
+        dryRun,
+      });
+      expect(result).toEqual({
+        isError: true,
+        text: "Body inválido para POST /v3/transaction/preview: data must have required property 'amount'. Revisá el schema con search_api.",
+      });
+    },
+  );
+
   it("rejects '..' as a path parameter", async () => {
     const result = await callTool(client, "read_api", {
       operation: "GET /v3/transaction/{id}",
@@ -384,6 +432,54 @@ describe("API tools", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.text).toContain("antes de reintentar");
+  });
+});
+
+describe("an unreachable Cresium API", () => {
+  let unreachable: RunningApp;
+  let client: Client;
+
+  beforeAll(async () => {
+    const closed = Bun.serve({ port: 0, fetch: () => new Response() });
+    const refusing = `http://localhost:${closed.port}`;
+    await closed.stop(true);
+    unreachable = await startApp({
+      sandbox: refusing,
+      production: refusing,
+      docs: "http://localhost:9",
+    });
+    client = await unreachable.connect("sandbox", HEADERS);
+  });
+
+  afterAll(async () => {
+    await client.close();
+    unreachable.stop();
+  });
+
+  const NO_ANSWER =
+    "La API de Cresium no respondió: no se pudo conectar o se cortó la conexión. Ambiente conectado: SANDBOX (pruebas, sin plata real).";
+
+  it("tells the agent on a read that the API did not answer, and logs why", async () => {
+    unreachable.logLines.length = 0;
+    const result = await callTool(client, "read_api", {
+      operation: "GET /v3/balance/wallets",
+    });
+    expect(result).toEqual({ isError: true, text: NO_ANSWER });
+    const failures = unreachable.logLines
+      .map((line) => JSON.parse(line) as { level: number; err?: unknown })
+      .filter(({ level, err }) => level >= 40 && err != null);
+    expect(failures).toHaveLength(1);
+  });
+
+  it("tells the agent on a write that Cresium may have applied it", async () => {
+    const result = await callTool(client, "write_api", {
+      operation: "POST /v3/deposit-address/cvu",
+      body: { value: "cliente.03" },
+    });
+    expect(result).toEqual({
+      isError: true,
+      text: `${NO_ANSWER} ${API_WRITE_UNKNOWN_OUTCOME}`,
+    });
   });
 });
 

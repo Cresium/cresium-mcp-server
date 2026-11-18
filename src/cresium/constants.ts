@@ -16,6 +16,9 @@ export const SERVER_ERROR_STATUS = 500;
 /** Path values that would empty the segment or let fetch normalize the URL away from the signed one. */
 export const UNSAFE_PATH_VALUES: ReadonlySet<string> = new Set(["", ".", ".."]);
 
+export const API_UNREACHABLE =
+  "La API de Cresium no respondió: no se pudo conectar o se cortó la conexión.";
+
 export const TIMESTAMP_PLACEHOLDER = `<${MAGE_HEADERS.timestamp}>`;
 
 export const DRY_RUN_NOTE = `No se envió nada a Cresium. Para firmar este pedido en código propio: ${MAGE_HEADERS.signature} = base64(HMAC-SHA256(secret, signedText)), reemplazando ${TIMESTAMP_PLACEHOLDER} por el valor del header ${MAGE_HEADERS.timestamp} (ISO 8601, a menos de 60 segundos de la hora real).`;
