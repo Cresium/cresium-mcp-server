@@ -3,22 +3,11 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { SERVER_INFO, UNAUTHORIZED_STATUS } from "../constants.ts";
 import { maskApiKey, readCredentials } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
-import type { PartnerCredentials, PartnerSession } from "../partner/types.ts";
+import type { PartnerSession } from "../partner/types.ts";
 import { runTool } from "../tools/run.ts";
 import type { ToolDef } from "../tools/types.ts";
 import { PROMPTS, SERVER_INSTRUCTIONS } from "./constants.ts";
 import type { McpEndpointOptions } from "./types.ts";
-
-// The SDK builds the server from the same Request that `fetch` below already checked, so a miss is a wiring bug.
-function credentialsOf(request: Request | undefined): PartnerCredentials {
-  const result = readCredentials(request?.headers ?? new Headers());
-  if (!result.ok) {
-    throw new Error(
-      "MCP request reached the server without partner credentials",
-    );
-  }
-  return result.credentials;
-}
 
 // A write tool names the environment in its own description, because agents read it right before calling.
 function describeTool(tool: ToolDef, environmentLine: string): string {
@@ -81,23 +70,9 @@ function buildMcpServer(
   return server;
 }
 
-/** One MCP endpoint bound to one Cresium environment: 401 without credentials, else a fresh MCP server per request. */
 export function createMcpEndpoint(
   options: McpEndpointOptions,
 ): (request: Request) => Promise<Response> {
-  const handler = createMcpHandler(
-    ({ requestInfo }) =>
-      buildMcpServer(options, {
-        environment: options.environment,
-        apiBaseUrl: options.apiBaseUrl,
-        credentials: credentialsOf(requestInfo),
-      }),
-    {
-      onerror: (error) => {
-        options.logger.error({ err: error }, "mcp handler error");
-      },
-    },
-  );
   return async (request) => {
     const result = readCredentials(request.headers);
     if (!result.ok) {
@@ -109,6 +84,17 @@ export function createMcpEndpoint(
         { status: UNAUTHORIZED_STATUS },
       );
     }
+    const session: PartnerSession = {
+      environment: options.environment,
+      apiBaseUrl: options.apiBaseUrl,
+      credentials: result.credentials,
+    };
+    // One handler per request, so the server factory closes over this request's credentials.
+    const handler = createMcpHandler(() => buildMcpServer(options, session), {
+      onerror: (error) => {
+        options.logger.error({ err: error }, "mcp handler error");
+      },
+    });
     return await handler.fetch(request);
   };
 }
