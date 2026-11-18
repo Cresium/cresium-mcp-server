@@ -6,10 +6,6 @@ import type { MistakeCase, SignatureMistake, SignedFields } from "./types.ts";
 
 // Not in constants.ts: each entry calls the signing functions, which constants.ts must stay free of.
 
-const BASE64_SECRET =
-  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-const HEX_SECRET = /^(?:[0-9a-fA-F]{2})+$/;
-
 function withFields(
   { session, fields }: MistakeCase,
   patch: Partial<SignedFields>,
@@ -59,15 +55,15 @@ function pathOf(url: string): string | undefined {
   }
 }
 
+/** Tried whatever the secret looks like: skipping it for some secrets would tell the agent what the secret looks like. */
 function decodedSecretSignature(
   { session, fields }: MistakeCase,
   encoding: "base64" | "hex",
-  looksEncoded: RegExp,
-): string | undefined {
-  const { secret } = session.credentials;
-  return looksEncoded.test(secret)
-    ? signText(Buffer.from(secret, encoding), toSignedText(fields))
-    : undefined;
+): string {
+  return signText(
+    Buffer.from(session.credentials.secret, encoding),
+    toSignedText(fields),
+  );
 }
 
 /** Known ways a client gets the signature wrong, most common first. Adding a mistake is adding one entry. */
@@ -228,13 +224,13 @@ export const SIGNATURE_MISTAKES: readonly SignatureMistake[] = [
     id: "secret-base64-decoded",
     explanation:
       "El secret se decodificó de Base64 antes de usarlo como clave. Usalo tal cual, como el texto que te dio Cresium.",
-    forge: (input) => decodedSecretSignature(input, "base64", BASE64_SECRET),
+    forge: (input) => decodedSecretSignature(input, "base64"),
   },
   {
     id: "secret-hex-decoded",
     explanation:
       "El secret se decodificó de hexadecimal antes de usarlo como clave. Usalo tal cual, como el texto que te dio Cresium.",
-    forge: (input) => decodedSecretSignature(input, "hex", HEX_SECRET),
+    forge: (input) => decodedSecretSignature(input, "hex"),
   },
   {
     id: "api-key-as-secret",
