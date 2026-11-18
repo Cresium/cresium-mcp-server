@@ -1,8 +1,22 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 
 import { UserFacingError } from "../errors.ts";
-import { rejectOnAbort } from "./abort.ts";
 import type { RunOptions, ToolCall } from "./types.ts";
+
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const fail = (): void => {
+      reject(
+        signal.reason instanceof Error ? signal.reason : new Error("aborted"),
+      );
+    };
+    if (signal.aborted) {
+      fail();
+      return;
+    }
+    signal.addEventListener("abort", fail, { once: true });
+  });
+}
 
 function errorResult(text: string): CallToolResult {
   return { isError: true, content: [{ type: "text", text }] };

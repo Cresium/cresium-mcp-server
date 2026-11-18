@@ -40,7 +40,7 @@ const callInput = operationCallSchema.extend({
 
 type ApiCallRequest = z.infer<typeof callInput>;
 
-function summarizeOperation(operation: Operation): unknown {
+function summarizeOperation(operation: Operation) {
   return {
     operation: operation.id,
     summary: operation.summary,
@@ -48,7 +48,7 @@ function summarizeOperation(operation: Operation): unknown {
   };
 }
 
-function describeOperation(operation: Operation): unknown {
+function describeOperation(operation: Operation) {
   return {
     operation: operation.id,
     summary: operation.summary,
@@ -83,6 +83,17 @@ const checkConnectionTool = defineTool({
   },
 });
 
+function searchText(query: string): string {
+  if (query.trim() === "") {
+    return JSON.stringify(OPERATIONS.map(summarizeOperation));
+  }
+  const found = searchOperations(query, SEARCH_LIMIT);
+  if (found.length === 0) {
+    return `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas.`;
+  }
+  return JSON.stringify(found.map(describeOperation));
+}
+
 const searchApiTool = defineTool({
   name: "search_api",
   description: `Busca operaciones de la API V3 de Cresium (CVUs, pagos, transferencias, saldo, transacciones, facturas, firmas, comisiones, sandbox) por palabras en español o inglés, o por path. Usala antes de read_api o write_api. Sin query lista todas las operaciones con su id y resumen; con query devuelve las ${SEARCH_LIMIT} más relevantes con sus parámetros y el schema del body.`,
@@ -95,20 +106,7 @@ const searchApiTool = defineTool({
       ),
   }),
   access: "read",
-  run: ({ query }) => {
-    if (query.trim() === "") {
-      return Promise.resolve(
-        JSON.stringify(OPERATIONS.map(summarizeOperation)),
-      );
-    }
-    const found = searchOperations(query, SEARCH_LIMIT);
-    if (found.length === 0) {
-      return Promise.resolve(
-        `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas.`,
-      );
-    }
-    return Promise.resolve(JSON.stringify(found.map(describeOperation)));
-  },
+  run: ({ query }) => Promise.resolve(searchText(query)),
 });
 
 const CALL_TOOLS = {

@@ -7,8 +7,8 @@ import {
   DOCS_FEEDBACK_UNKNOWN_OUTCOME,
   MINTLIFY_TOOLS,
 } from "./constants.ts";
+import { formatDocsSearch } from "./format.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
-import { formatDocsSearch } from "./search.ts";
 
 export function createDocsTools(docsUrl: string): readonly ToolDef[] {
   const searchDocs = defineTool({

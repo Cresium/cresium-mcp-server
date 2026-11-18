@@ -4,7 +4,7 @@ import {
   DOCS_SEARCH_MAX_RESULTS,
   DOCS_SEARCH_RESULT_MAX_CHARS,
 } from "./constants.ts";
-import { formatDocsSearch } from "./search.ts";
+import { formatDocsSearch } from "./format.ts";
 
 function result(page: string, contentLength = 20): string {
   return `Title: ${page}\nLink: https://docs.cresium.com/${page}\nPage: ${page}\nContent: ${"x".repeat(contentLength)}`;

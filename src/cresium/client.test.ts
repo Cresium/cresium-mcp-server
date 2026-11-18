@@ -91,9 +91,7 @@ describe("callCresium", () => {
     ).catch((thrown: unknown) => thrown);
     expect(error).toBeInstanceOf(Error);
   });
-});
 
-describe("callCresium identification", () => {
   it("names itself with the User-Agent", async () => {
     await callCresium(target, { method: "GET", url: "/v3/balance/" }, signal);
     const [request] = fake.received;
