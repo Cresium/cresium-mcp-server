@@ -79,3 +79,7 @@ export const API_WRITE_UNKNOWN_OUTCOME =
 export const SCHEMA_HINT = "Revisá el schema con search_api.";
 
 export const CONNECTION_CACHE_TTL_MS = 10 * 60_000;
+
+/** Bounds diagnose_signature's inputs: it hashes them about 20 times per call, with credentials nobody verified. */
+export const DIAGNOSE_MAX_BODY_LENGTH = 65_536;
+export const DIAGNOSE_MAX_URL_LENGTH = 4_096;
