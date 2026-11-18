@@ -6,8 +6,10 @@ import type { Operation } from "../cresium/types.ts";
 import { UserFacingError } from "../errors.ts";
 import type { ToolAccess } from "../tools/types.ts";
 import {
-  DESCRIPTION_MATCH_SCORE,
+  MIN_PLURAL_WORD_LENGTH,
+  SEARCH_STOPWORDS,
   SEARCH_SYNONYMS,
+  SUMMARY_MATCH_BONUS,
   TITLE_MATCH_SCORE,
 } from "./constants.ts";
 import operationsJson from "./operations.json" with { type: "json" };
@@ -48,6 +50,7 @@ function toSearchable(operation: Operation): SearchableOperation {
   return {
     operation,
     title: normalize(title),
+    summary: normalize(operation.summary),
     description: normalize(operation.description),
   };
 }
@@ -55,27 +58,44 @@ function toSearchable(operation: Operation): SearchableOperation {
 const SEARCHABLE_OPERATIONS: readonly SearchableOperation[] =
   OPERATIONS.map(toSearchable);
 
+function withoutPlural(word: string): readonly string[] {
+  if (word.length < MIN_PLURAL_WORD_LENGTH) return [];
+  return [word.replace(/s$/, ""), word.replace(/es$/, "")].filter(
+    (stem) => stem !== word,
+  );
+}
+
+function variantsOf(word: string): readonly string[] {
+  const forms = [word, ...withoutPlural(word)];
+  return [
+    ...forms,
+    ...forms.flatMap((form) => SEARCH_SYNONYMS.get(form) ?? []),
+  ];
+}
+
+/** How well one word matches an operation; 0 when it is nowhere, and a description alone never counts as a hit. */
 function wordScore(
-  word: string,
-  { title, description }: SearchableOperation,
+  variants: readonly string[],
+  { title, summary }: SearchableOperation,
 ): number {
-  const variants = [word, ...(SEARCH_SYNONYMS.get(word) ?? [])];
-  if (variants.some((variant) => title.includes(variant))) {
-    return TITLE_MATCH_SCORE;
-  }
-  if (variants.some((variant) => description.includes(variant))) {
-    return DESCRIPTION_MATCH_SCORE;
-  }
-  return 0;
+  if (!variants.some((variant) => title.includes(variant))) return 0;
+  return variants.some((variant) => summary.includes(variant))
+    ? TITLE_MATCH_SCORE + SUMMARY_MATCH_BONUS
+    : TITLE_MATCH_SCORE;
 }
 
 export function searchOperations(
   query: string,
   limit: number,
 ): readonly Operation[] {
-  const words = normalize(query).split(/\s+/).filter(Boolean);
+  const words = normalize(query)
+    .split(/\s+/)
+    .filter((word) => word !== "" && !SEARCH_STOPWORDS.has(word));
+  const wordVariants = words.map(variantsOf);
   return SEARCHABLE_OPERATIONS.map((searchable) => {
-    const scores = words.map((word) => wordScore(word, searchable));
+    const scores = wordVariants.map((variants) =>
+      wordScore(variants, searchable),
+    );
     const score = scores.reduce((total, each) => total + each, 0);
     return { operation: searchable.operation, score };
   })
