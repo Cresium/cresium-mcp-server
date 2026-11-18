@@ -17,13 +17,18 @@ import type {
 } from "../tools/types.ts";
 import { callApi } from "./call.ts";
 import { checkConnection } from "./connection.ts";
-import { API_WRITE_UNKNOWN_OUTCOME, SEARCH_LIMIT } from "./constants.ts";
+import {
+  API_WRITE_UNKNOWN_OUTCOME,
+  SEARCH_LIMIT,
+  UNMATCHED_FIELDS_NOTE,
+} from "./constants.ts";
 import {
   accessOf,
   findOperation,
   OPERATIONS,
   searchOperations,
 } from "./operations.ts";
+import { projectFields } from "./project.ts";
 import { operationCallSchema } from "./schema.ts";
 
 const callInput = operationCallSchema.extend({
@@ -37,6 +42,16 @@ const callInput = operationCallSchema.extend({
     .default(false)
     .describe(
       "Con true no envía nada: devuelve el pedido exacto (método, URL y body ya normalizado) y el texto que hay que firmar. Sirve para mostrarle al usuario qué se va a ejecutar y para depurar la firma en código propio.",
+    ),
+});
+
+const readInput = callInput.extend({
+  fields: z
+    .array(z.string().min(1))
+    .min(1)
+    .optional()
+    .describe(
+      'Campos a devolver de cada ítem de la lista, como paths con puntos (por ejemplo ["id", "counterparty.name"]); la paginación se conserva y se avisa de los paths que no existen.',
     ),
 });
 
@@ -61,15 +76,27 @@ function describeOperation(operation: Operation) {
   };
 }
 
+function answerText(
+  answer: unknown,
+  fields: readonly string[] | undefined,
+): string {
+  if (!fields) return JSON.stringify(answer);
+  const { value, unmatched } = projectFields(answer, fields);
+  const text = JSON.stringify(value);
+  return unmatched.length === 0
+    ? text
+    : `${text}\n\n${UNMATCHED_FIELDS_NOTE} ${unmatched.join(", ")}`;
+}
+
 async function runOperation(
-  input: ApiCallRequest,
+  input: ApiCallRequest & { readonly fields?: readonly string[] | undefined },
   operation: Operation,
   ctx: ToolContext,
 ): Promise<string> {
   if (input.dryRun) {
     return JSON.stringify(previewOperation(ctx.session, operation, input));
   }
-  return JSON.stringify(await callApi(ctx, operation, input));
+  return answerText(await callApi(ctx, operation, input), input.fields);
 }
 
 const checkConnectionTool = defineTool({
@@ -187,28 +214,40 @@ const CALL_TOOLS = {
   }
 >;
 
-function createCallTool(access: ToolAccess): ToolDef {
-  const { name, title, description, wrongAccess, effect } = CALL_TOOLS[access];
-  return defineTool({
-    name,
-    title,
-    description,
-    input: callInput,
-    ...effect,
-    run: async (input, ctx) => {
-      const operation = findOperation(input.operation);
-      if (accessOf(operation) !== access) {
-        throw new UserFacingError(`${operation.id} ${wrongAccess}`);
-      }
-      return await runOperation(input, operation, ctx);
-    },
-  });
+function operationFor(access: ToolAccess, id: string): Operation {
+  const operation = findOperation(id);
+  if (accessOf(operation) !== access) {
+    throw new UserFacingError(
+      `${operation.id} ${CALL_TOOLS[access].wrongAccess}`,
+    );
+  }
+  return operation;
 }
+
+const readApiTool = defineTool({
+  name: CALL_TOOLS.read.name,
+  title: CALL_TOOLS.read.title,
+  description: CALL_TOOLS.read.description,
+  input: readInput,
+  ...CALL_TOOLS.read.effect,
+  run: async (input, ctx) =>
+    await runOperation(input, operationFor("read", input.operation), ctx),
+});
+
+const writeApiTool = defineTool({
+  name: CALL_TOOLS.write.name,
+  title: CALL_TOOLS.write.title,
+  description: CALL_TOOLS.write.description,
+  input: callInput,
+  ...CALL_TOOLS.write.effect,
+  run: async (input, ctx) =>
+    await runOperation(input, operationFor("write", input.operation), ctx),
+});
 
 export const API_TOOLS: readonly ToolDef[] = [
   checkConnectionTool,
   searchApiTool,
   diagnoseSignatureTool,
-  createCallTool("read"),
-  createCallTool("write"),
+  readApiTool,
+  writeApiTool,
 ];

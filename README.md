@@ -116,6 +116,18 @@ Your agent's prompt menu offers two ready-made tasks:
 }
 ```
 
+### Lean results
+
+`read_api` takes an optional `fields` list of dot paths, so a listing returns only what the agent reads. Paths apply to each item of the answer's `data` (a list, or an object holding one list, as `GET /v3/transaction/search` answers); pagination fields and the rest of the envelope are kept. A path may be nested (`counterparty.name`) or go through a list inside an item (`lines.qty`). A path that matches nothing in any item is named in a note after the JSON, never an error. An error answer from Cresium and a non-JSON answer are never changed. There is no switch: leave `fields` out for the full answer.
+
+```json
+{
+  "operation": "GET /v3/transaction/search",
+  "query": { "pageSize": 5 },
+  "fields": ["id", "amount", "counterparty.name"]
+}
+```
+
 ### Errors
 
 The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.

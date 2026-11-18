@@ -75,3 +75,7 @@ export const API_WRITE_UNKNOWN_OUTCOME =
   "Cresium pudo haberla aplicado igual: verificá el estado con read_api (por ejemplo GET /v3/transaction/search) antes de reintentar.";
 
 export const CONNECTION_CACHE_TTL_MS = 10 * 60_000;
+
+/** Starts the note that follows an answer when some `fields` paths matched nothing; the paths come after it. */
+export const UNMATCHED_FIELDS_NOTE =
+  "Nota: estos paths de fields no existen en ningún ítem y se ignoraron:";
