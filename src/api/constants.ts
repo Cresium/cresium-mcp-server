@@ -1,3 +1,6 @@
+import type { AccessMode } from "../tools/types.ts";
+import type { WriteGuidance } from "./types.ts";
+
 export const SEARCH_LIMIT = 8;
 
 export const TITLE_MATCH_SCORE = 3;
@@ -68,6 +71,22 @@ export const SEARCH_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
   ["deactivate", ["baja"]],
   ["cancel", ["borrar", "baja"]],
 ]);
+
+/** What the API tools tell the agent about writing: a read-only connection has no write_api to point to. */
+export const WRITE_GUIDANCE = {
+  full: {
+    beforeCalling: "Usala antes de read_api o write_api.",
+    readDescription: "Para escribir usá write_api.",
+    readWrongAccess: "escribe datos. Usá write_api para ejecutarla.",
+  },
+  "read-only": {
+    beforeCalling: "Usala antes de read_api.",
+    readDescription:
+      "Esta conexión es de solo lectura: para escribir, conectate a la misma URL sin /read-only.",
+    readWrongAccess:
+      "escribe datos y esta conexión es de solo lectura: para ejecutarla, conectate a la misma URL sin /read-only.",
+  },
+} as const satisfies Record<AccessMode, WriteGuidance>;
 
 /** A cheap signed read every partner key can run; check_connection uses it to prove the credentials work. */
 export const CONNECTION_CHECK_OPERATION = "GET /v3/balance/wallets";
