@@ -20,6 +20,7 @@ import { checkConnection } from "./connection.ts";
 import {
   API_WRITE_UNKNOWN_OUTCOME,
   READ_API_NARROWING_ADVICE,
+  SCHEMA_HINT,
   SEARCH_LIMIT,
   UNMATCHED_FIELDS_NOTE,
 } from "./constants.ts";
@@ -94,10 +95,17 @@ async function runOperation(
   operation: Operation,
   ctx: ToolContext,
 ): Promise<string> {
-  if (input.dryRun) {
-    return JSON.stringify(previewOperation(ctx.session, operation, input));
+  try {
+    if (input.dryRun) {
+      return JSON.stringify(previewOperation(ctx.session, operation, input));
+    }
+    return answerText(await callApi(ctx, operation, input), input.fields);
+  } catch (error) {
+    if (error instanceof UserFacingError && error.schemaViolation) {
+      throw new UserFacingError(`${error.message} ${SCHEMA_HINT}`);
+    }
+    throw error;
   }
-  return answerText(await callApi(ctx, operation, input), input.fields);
 }
 
 const checkConnectionTool = defineTool({

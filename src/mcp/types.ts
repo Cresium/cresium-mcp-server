@@ -25,3 +25,10 @@ export interface PromptDef {
   /** What a read-only connection is given instead, or null when the prompt needs a write tool and is not offered. */
   readonly readOnlyText: string | null;
 }
+
+/** A POST body as the endpoint read it: parsed JSON, text the SDK must parse and answer, or not read at all. */
+export type McpBody =
+  | { readonly kind: "parsed"; readonly value: unknown }
+  | { readonly kind: "unparsed"; readonly text: string }
+  | { readonly kind: "tooLarge" }
+  | { readonly kind: "untouched" };

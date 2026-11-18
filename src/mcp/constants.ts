@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_REQUEST_BODY_SIZE } from "@modelcontextprotocol/server";
+
 import type { PromptDef } from "./types.ts";
 
 export const ACCESS_MODES = ["full", "read-only"] as const;
@@ -40,6 +42,18 @@ function debugSignatureText(tools: string): string {
     "5. Mostrame la diferencia y corregí mi código.",
   ].join("\n");
 }
+
+export const PAYLOAD_TOO_LARGE_STATUS = 413;
+
+/** The SDK's own answer to a body over its limit, which it skips for a body handed to it parsed. */
+export const BODY_TOO_LARGE_ANSWER = {
+  jsonrpc: "2.0",
+  error: {
+    code: -32_000,
+    message: `Payload Too Large: Request body must not exceed ${DEFAULT_MAX_REQUEST_BODY_SIZE} bytes`,
+  },
+  id: null,
+} as const;
 
 export const PROMPTS: readonly PromptDef[] = [
   {

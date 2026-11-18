@@ -5,6 +5,7 @@ import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { callCresium, previewRequest } from "./client.ts";
 import {
+  API_UNREACHABLE,
   AUTH_PROBLEMS,
   CLIENT_ERROR_STATUS,
   DRY_RUN_NOTE,
@@ -19,6 +20,11 @@ import type {
   Operation,
   OperationCall,
 } from "./types.ts";
+
+/** Whether the operation changes data: everything but GET. */
+export function isWrite(operation: Operation): boolean {
+  return operation.method !== "GET";
+}
 
 async function send(
   { session, signal, onCall }: CallContext,
@@ -35,6 +41,14 @@ async function send(
     );
     status = response.status;
     return response;
+  } catch (error) {
+    // A cancel or timeout keeps its own text, and so does an answer already judged too large to read.
+    if (signal.aborted || error instanceof UserFacingError) throw error;
+    // A reset can arrive after mage processed the request.
+    throw new UserFacingError(
+      `${API_UNREACHABLE} ${connectedTo(session.environment)}`,
+      { outcomeUnknown: true, cause: error },
+    );
   } finally {
     onCall({
       operation: operation.id,
@@ -64,7 +78,7 @@ function assertSucceeded(
   if (response.status < CLIENT_ERROR_STATUS) return;
   // A 5xx (often a gateway timeout) can arrive after the write was applied.
   const writeMayHaveApplied =
-    response.status >= SERVER_ERROR_STATUS && operation.method !== "GET";
+    response.status >= SERVER_ERROR_STATUS && isWrite(operation);
   const parts = [
     `Cresium respondió ${response.status}: ${JSON.stringify(response.body)}`,
     authHint(response, session),

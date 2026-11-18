@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { isWrite } from "../cresium/operation.ts";
 import { compileOperation } from "../cresium/request.ts";
 import { operationSchema } from "../cresium/schema.ts";
 import type { Operation } from "../cresium/types.ts";
@@ -26,7 +27,7 @@ const OPERATIONS_BY_ID: ReadonlyMap<string, Operation> = new Map(
 );
 
 export function accessOf(operation: Operation): ToolAccess {
-  return operation.method === "GET" ? "read" : "write";
+  return isWrite(operation) ? "write" : "read";
 }
 
 export function findOperation(id: string): Operation {
