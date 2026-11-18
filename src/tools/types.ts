@@ -2,8 +2,11 @@ import type { Logger } from "pino";
 import type { z } from "zod";
 
 import type { PartnerSession } from "../partner/types.ts";
+import type { ACCESS_MODES } from "./constants.ts";
 
 export type ToolAccess = "read" | "write";
+
+export type AccessMode = (typeof ACCESS_MODES)[number];
 
 export type ToolName = `${string}_${string}`;
 

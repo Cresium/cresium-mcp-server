@@ -27,10 +27,10 @@ export async function startApp(urls: AppUrls): Promise<RunningApp> {
   return {
     url,
     logLines,
-    connect: async (environment, headers, options) => {
+    connect: async (route, headers, options) => {
       const client = new Client({ name: "app-test", version: "0" }, options);
       await client.connect(
-        new StreamableHTTPClientTransport(new URL(`${url}/${environment}`), {
+        new StreamableHTTPClientTransport(new URL(`${url}/${route}`), {
           requestInit: { headers },
         }),
       );

@@ -74,12 +74,21 @@ const TOOL_CALLS: readonly {
 let cresium: FakeCresium;
 let app: RunningApp;
 let client: Client;
+let readOnlyClient: Client;
 const docs = Bun.serve({
   port: 0,
   fetch: () => new Response("not found", { status: 404 }),
 });
-const agentTexts: { source: string; text: string }[] = [];
-const knownNames = new Set<string>();
+type RouteName = "full" | "read-only";
+const ROUTES: readonly RouteName[] = ["full", "read-only"];
+/** Each text with the route that serves it; null for a text every route can show. */
+const agentTexts: { route: RouteName | null; source: string; text: string }[] =
+  [];
+/** The tools and prompts each route registers: a text may only name what its own route has. */
+const knownNames: Record<RouteName, Set<string>> = {
+  full: new Set(),
+  "read-only": new Set(),
+};
 
 function descriptionsIn(schema: unknown): readonly string[] {
   if (schema == null || typeof schema !== "object") return [];
@@ -90,44 +99,53 @@ function descriptionsIn(schema: unknown): readonly string[] {
   );
 }
 
-async function collectTools(): Promise<void> {
-  const { tools } = await client.listTools();
+async function collectTools(from: Client, route: RouteName): Promise<void> {
+  const { tools } = await from.listTools();
   for (const tool of tools) {
-    knownNames.add(tool.name);
+    knownNames[route].add(tool.name);
     agentTexts.push({
-      source: `${tool.name} description`,
+      route,
+      source: `${route} ${tool.name} description`,
       text: tool.description ?? "",
     });
     for (const text of descriptionsIn(tool.inputSchema)) {
-      agentTexts.push({ source: `${tool.name} input`, text });
+      agentTexts.push({ route, source: `${route} ${tool.name} input`, text });
     }
   }
 }
 
-async function collectPrompts(): Promise<void> {
-  const { prompts } = await client.listPrompts();
+async function collectPrompts(from: Client, route: RouteName): Promise<void> {
+  const { prompts } = await from.listPrompts();
   for (const prompt of prompts) {
-    knownNames.add(prompt.name);
-    const { messages } = await client.getPrompt({ name: prompt.name });
+    knownNames[route].add(prompt.name);
+    const { messages } = await from.getPrompt({ name: prompt.name });
     const text = messages
       .map(({ content }) => (content.type === "text" ? content.text : ""))
       .join("\n");
     agentTexts.push(
-      { source: `${prompt.name} description`, text: prompt.description ?? "" },
-      { source: `${prompt.name} text`, text },
+      {
+        route,
+        source: `${route} ${prompt.name} description`,
+        text: prompt.description ?? "",
+      },
+      { route, source: `${route} ${prompt.name} text`, text },
     );
   }
 }
 
-async function collectToolAnswers(): Promise<void> {
+async function collectToolAnswers(
+  from: Client,
+  route: RouteName,
+): Promise<void> {
   // A renamed tool is reported by the name checks below, not as a failed call here.
   for (const { reply, name, args } of TOOL_CALLS.filter(({ name }) =>
-    knownNames.has(name),
+    knownNames[route].has(name),
   )) {
     cresium.reply(reply ?? { status: 200, body: '{"data":true}' });
-    const { text } = await callTool(client, name, args);
+    const { text } = await callTool(from, name, args);
     agentTexts.push({
-      source: `${name} answer to ${JSON.stringify(args)}`,
+      route,
+      source: `${route} ${name} answer to ${JSON.stringify(args)}`,
       text,
     });
   }
@@ -141,15 +159,23 @@ beforeAll(async () => {
     docs: `http://localhost:${docs.port}`,
   });
   client = await app.connect("sandbox", HEADERS);
-  agentTexts.push({
-    source: "server instructions",
-    text: client.getInstructions() ?? "",
-  });
-  await collectTools();
-  await collectPrompts();
-  await collectToolAnswers();
+  readOnlyClient = await app.connect("sandbox/read-only", HEADERS);
+  for (const [route, from] of [
+    ["full", client],
+    ["read-only", readOnlyClient],
+  ] as const) {
+    agentTexts.push({
+      route,
+      source: `${route} server instructions`,
+      text: from.getInstructions() ?? "",
+    });
+    await collectTools(from, route);
+    await collectPrompts(from, route);
+    await collectToolAnswers(from, route);
+  }
   const longBlock = `Page: sandbox\n${"x".repeat(2_000)}`;
   agentTexts.push({
+    route: null,
     source: "docs search format",
     text: formatDocsSearch(Array.from({ length: 6 }, () => longBlock)),
   });
@@ -157,6 +183,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await client.close();
+  await readOnlyClient.close();
   app.stop();
   await cresium.stop();
   await docs.stop(true);
@@ -165,19 +192,33 @@ afterAll(async () => {
 describe("names mentioned in agent-facing text", () => {
   it("collects the texts of the tools and prompts the server really has", () => {
     for (const name of ["check_connection", "read_api", "depurar_firma"]) {
-      expect(knownNames.has(name)).toBe(true);
+      expect(knownNames.full.has(name)).toBe(true);
     }
-    for (const { name } of TOOL_CALLS) expect(knownNames.has(name)).toBe(true);
+    for (const { name } of TOOL_CALLS) {
+      expect(knownNames.full.has(name)).toBe(true);
+    }
     expect(agentTexts.length).toBeGreaterThan(TOOL_CALLS.length);
   });
 
-  it("names only tools and prompts that exist", () => {
-    for (const { source, text } of agentTexts) {
+  it("collects the read-only connection's own instructions, prompt and answers", () => {
+    const sources = agentTexts.map(({ source }) => source);
+    expect(sources).toContain("read-only server instructions");
+    expect(sources).toContain("read-only depurar_firma text");
+    expect(sources).toContain(
+      'read-only read_api answer to {"operation":"POST /v3/deposit-address/cvu"}',
+    );
+  });
+
+  it("names only tools and prompts that the route serving the text registers", () => {
+    for (const { route, source, text } of agentTexts) {
+      const routes = route ? [route] : ROUTES;
       for (const name of text.match(TOOL_NAME) ?? []) {
-        expect(
-          knownNames.has(name),
-          `${source} mentions ${name}, which is no tool or prompt`,
-        ).toBe(true);
+        for (const each of routes) {
+          expect(
+            knownNames[each].has(name),
+            `${source} mentions ${name}, which ${each} does not register`,
+          ).toBe(true);
+        }
       }
     }
   });

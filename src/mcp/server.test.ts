@@ -7,6 +7,7 @@ import { createMcpEndpoint } from "./server.ts";
 
 const endpoint = createMcpEndpoint({
   tools: [],
+  mode: "full",
   environment: "sandbox",
   apiBaseUrl: "http://localhost:9",
   timeoutMs: 1000,

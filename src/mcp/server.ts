@@ -16,8 +16,9 @@ import { maskApiKey, readCredentials } from "../partner/credentials.ts";
 import { connectedTo } from "../partner/environment.ts";
 import type { PartnerSession } from "../partner/types.ts";
 import { runTool } from "../tools/run.ts";
-import type { ToolDef } from "../tools/types.ts";
+import type { AccessMode, ToolDef } from "../tools/types.ts";
 import {
+  ACCESS_NOTICE,
   BATCH_REFUSED_MESSAGE,
   BODY_TOO_LARGE_ANSWER,
   PAYLOAD_TOO_LARGE_STATUS,
@@ -46,12 +47,21 @@ function hintsOf(tool: ToolDef): ToolAnnotations {
   };
 }
 
-function registerPrompts(server: McpServer): void {
-  for (const { name, title, description, text } of PROMPTS) {
+function registerPrompts(server: McpServer, mode: AccessMode): void {
+  for (const { name, title, description, text, readOnlyText } of PROMPTS) {
+    const offered = mode === "read-only" ? readOnlyText : text;
+    if (!offered) continue;
     server.registerPrompt(name, { title, description }, () => ({
-      messages: [{ role: "user", content: { type: "text", text } }],
+      messages: [{ role: "user", content: { type: "text", text: offered } }],
     }));
   }
+}
+
+// What a tool declares about its effect decides, never its name, so a new write tool is left out by default.
+function toolsFor(options: McpEndpointOptions): readonly ToolDef[] {
+  return options.mode === "read-only"
+    ? options.tools.filter(({ access }) => access === "read")
+    : options.tools;
 }
 
 function buildMcpServer(
@@ -64,15 +74,15 @@ function buildMcpServer(
       tools: { listChanged: false },
       prompts: { listChanged: false },
     },
-    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}\n${SERVER_INSTRUCTIONS}`,
+    instructions: `Servidor MCP de Cresium: API V3 de partners y documentación. ${environmentLine}${ACCESS_NOTICE[options.mode]}\n${SERVER_INSTRUCTIONS[options.mode]}`,
   });
-  registerPrompts(server);
+  registerPrompts(server, options.mode);
   const logger = options.logger.child({
     environment: session.environment,
     companyId: session.credentials.companyId,
     apiKeyMasked: maskApiKey(session.credentials.apiKey),
   });
-  for (const tool of options.tools) {
+  for (const tool of toolsFor(options)) {
     server.registerTool(
       tool.name,
       {

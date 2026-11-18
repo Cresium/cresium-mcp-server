@@ -110,7 +110,7 @@ describe("findOperation", () => {
 describe("operation ids named in agent-facing text", () => {
   it("all exist in the bundled operations", () => {
     const sources = {
-      SERVER_INSTRUCTIONS,
+      SERVER_INSTRUCTIONS: SERVER_INSTRUCTIONS.full,
       PROMPTS: PROMPTS.map(({ text }) => text).join("\n"),
       API_WRITE_UNKNOWN_OUTCOME,
       CONNECTION_CHECK_OPERATION,
