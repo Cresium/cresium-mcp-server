@@ -1,8 +1,10 @@
 import { Glob } from "bun";
 import { describe, expect, it } from "bun:test";
 
-import { OPERATIONS } from "../src/api/operations.ts";
+import { findOperation, OPERATIONS } from "../src/api/operations.ts";
 import { API_TOOLS } from "../src/api/tools.ts";
+import { previewRequest } from "../src/cresium/client.ts";
+import { toCresiumRequest } from "../src/cresium/request.ts";
 import { MINTLIFY_TOOLS } from "../src/docs/constants.ts";
 import { createDocsTools } from "../src/docs/tools.ts";
 import { PROMPTS } from "../src/mcp/constants.ts";
@@ -64,4 +66,20 @@ describe("names mentioned in agent-facing text", () => {
       }
     }
   });
+});
+
+it("the signature prompt uses the same encoded list query as signedText", () => {
+  const request = toCresiumRequest(
+    findOperation("GET /v3/transaction/search"),
+    {
+      pathParams: {},
+      query: { types: ["DEPOSIT"] },
+    },
+  );
+  const preview = previewRequest("http://localhost", request);
+  const example = "types%5B%5D=DEPOSIT";
+  expect(preview.signedText).toContain(example);
+  expect(PROMPTS.find(({ name }) => name === "depurar_firma")?.text).toContain(
+    example,
+  );
 });

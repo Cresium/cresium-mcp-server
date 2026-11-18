@@ -44,7 +44,7 @@ export const PROMPTS: readonly PromptDef[] = [
       "3. Ejecutá la misma operación con dryRun: true (read_api o write_api) y compará signedText con mi texto, parte por parte:",
       "   - timestamp: el mismo valor que el header x-timestamp, en ISO 8601 y reciente (la nota del dry run dice el margen);",
       "   - método en mayúsculas;",
-      "   - path con query string, exactamente como se envía (las listas van como nombre[]=valor);",
+      "   - path con query string, codificado exactamente como en signedText (las listas van como nombre%5B%5D=valor; por ejemplo types%5B%5D=DEPOSIT);",
       "   - body: el JSON compacto que se envía, con los tipos del schema (los números como números), o vacío si no hay body.",
       "4. Mostrame la diferencia y corregí mi código.",
     ].join("\n"),
