@@ -108,7 +108,7 @@ describe("docs tools", () => {
       content: [
         {
           type: "text",
-          text: "Error interno ejecutando send_docs_feedback. Quedó registrado en el log.",
+          text: "La API de Cresium no respondió: no se pudo conectar o se cortó la conexión. Ambiente conectado: SANDBOX (pruebas, sin plata real).",
         },
       ],
     });
