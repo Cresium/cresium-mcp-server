@@ -64,6 +64,24 @@ Claude.ai and ChatGPT on the web are not supported: they connect through OAuth a
 
 Add `/read-only` to either path (`https://mcp.cresium.app/sandbox/read-only`, `https://mcp.cresium.app/production/read-only`) to give an analyst or a support agent a connection that cannot write. It is the same server with the same headers, but every tool that changes something (`write_api`, `send_docs_feedback`) is not offered, the instructions say so and give no advice about writing, and `integrar_cvus_dedicados` is not offered because it creates data; `depurar_firma` is, without `write_api`. Calling a write tool by name answers "Tool write_api not found", and `read_api` still refuses write operations, saying the connection is read-only; no text on that connection names a tool it does not offer. To get writes, connect to the path without `/read-only`. There is no switch: the default paths are unchanged, and the variants are not listed in `server.json`, because a registry entry cannot tell two URLs apart by purpose.
 
+## Rate limit per IP
+
+Each client IP may make 300 requests a minute to the MCP paths (`/sandbox`, `/production` and their `/read-only` variants share one budget); `/health` is never limited. A real agent session makes a few requests per tool call (initialize, list the tools, the call) and sometimes a burst of parallel calls, so one busy session is about 100 to 150 requests a minute, and 300 leaves room for a few agents behind the same office address. Past the limit the server answers `429` with a `Retry-After` header (seconds), the standard `RateLimit` headers and a JSON body `{ "error": "rate_limited", "message": ... }`, before it reads the credentials or the body, so a flood of made-up keys costs one counter increment, not a signed call to Cresium.
+
+| Variable                | Default | Meaning                                                                         |
+| ----------------------- | ------- | ------------------------------------------------------------------------------- |
+| `RATE_LIMIT_PER_MINUTE` | `300`   | Requests per minute per client IP.                                              |
+| `TRUSTED_PROXY_HOPS`    | `0`     | How many proxies sit between the internet and this server (ingress, CDN, etc.). |
+
+The server has to know which IP is the caller's. Behind a proxy, the socket address is the proxy's, and the real caller's address arrives in the `X-Forwarded-For` header, which each proxy extends with the address it saw. `TRUSTED_PROXY_HOPS` says how many of the rightmost entries were added by your own proxies and can be believed; with `0` the header is ignored and the socket address is used. Set it to the real number of proxies, because a wrong number is dangerous both ways:
+
+- Too low (for example `0` behind the ingress): every request appears to come from the ingress, so all partners share one budget of 300 a minute, and one noisy partner locks out the rest.
+- Too high (for example `2` with one proxy): the server believes an entry the caller wrote. Anyone can send `X-Forwarded-For: 1.2.3.4` with a new fake address on each request and never reach the limit.
+
+The deploy must set it (in production the server logs a warning at startup while it is `0`): count the proxies a request crosses before reaching the pod, and confirm by sending one request and counting the addresses your own proxies appended to `X-Forwarded-For`.
+
+The count lives in memory and per pod: with N pods a client can make up to N times the limit, and a restart resets it. To limit before traffic reaches the pods, or across them, do it in the ingress instead. There is no switch to turn it off; set `RATE_LIMIT_PER_MINUTE` high if you must.
+
 ## Tools
 
 | Tool                 | Does                                                                                                                         |

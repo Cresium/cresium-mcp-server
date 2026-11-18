@@ -5,6 +5,7 @@ import { createLogger } from "./logger.ts";
 
 const config = loadConfig(process.env);
 const logger = createLogger(config.logLevel);
+for (const warning of config.warnings) logger.warn(warning);
 const app = createApp({ config, logger });
 
 const server = app.listen(config.port, () => {

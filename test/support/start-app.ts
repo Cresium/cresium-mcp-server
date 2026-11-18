@@ -11,13 +11,21 @@ import { createApp } from "../../src/http/app.ts";
 import { captureLogger } from "./capture-logger.ts";
 import type { AppUrls, RunningApp } from "./types.ts";
 
-export async function startApp(urls: AppUrls): Promise<RunningApp> {
+// Far above what any test sends, so only a test about the limit meets it. It goes through the same env as production.
+const TEST_RATE_LIMIT_PER_MINUTE = "100000";
+
+export async function startApp(
+  urls: AppUrls,
+  env: Readonly<Record<string, string>> = {},
+): Promise<RunningApp> {
   const config = loadConfig({
     MCP_BASE_URL: "http://localhost:3000",
     CRESIUM_SANDBOX_API_URL: urls.sandbox,
     CRESIUM_PRODUCTION_API_URL: urls.production,
     CRESIUM_DOCS_URL: urls.docs,
     TOOL_TIMEOUT_MS: "5000",
+    RATE_LIMIT_PER_MINUTE: TEST_RATE_LIMIT_PER_MINUTE,
+    ...env,
   });
   const { lines: logLines, logger } = captureLogger();
   const server: Server = createApp({ config, logger }).listen(0);

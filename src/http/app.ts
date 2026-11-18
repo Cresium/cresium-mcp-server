@@ -14,6 +14,7 @@ import { MODE_PATH_SUFFIX } from "../mcp/constants.ts";
 import { createMcpEndpoint } from "../mcp/server.ts";
 import { ENVIRONMENTS } from "../partner/constants.ts";
 import { ACCESS_MODES } from "../tools/constants.ts";
+import { createRateLimiter } from "./rate-limit.ts";
 import type { AppDeps } from "./types.ts";
 
 export function createApp({ config, logger }: AppDeps): Express {
@@ -32,8 +33,11 @@ export function createApp({ config, logger }: AppDeps): Express {
   app.use(hostHeaderValidation(allowedHosts));
   app.use(originValidation(allowedHosts));
 
+  app.set("trust proxy", config.trustedProxyHops);
+
   const ensureConnected = createConnectionGuard();
   const docsTools = createDocsTools(config.docsUrl);
+  const rateLimiter = createRateLimiter(config);
   for (const environment of ENVIRONMENTS) {
     for (const mode of ACCESS_MODES) {
       const mcp = createMcpEndpoint({
@@ -47,6 +51,7 @@ export function createApp({ config, logger }: AppDeps): Express {
       });
       app.all(
         `/${environment}${MODE_PATH_SUFFIX[mode]}`,
+        rateLimiter,
         toNodeHandler({ fetch: mcp }),
       );
     }

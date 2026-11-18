@@ -1,6 +1,11 @@
 import * as z from "zod";
 
-import { LOG_LEVELS, LOOPBACK_HOSTNAMES } from "./constants.ts";
+import {
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
+  LOG_LEVELS,
+  LOOPBACK_HOSTNAMES,
+  SHARED_RATE_LIMIT_WARNING,
+} from "./constants.ts";
 import type { Config } from "./types.ts";
 
 function isHttpsOrLoopback(value: string): boolean {
@@ -22,8 +27,28 @@ const envSchema = z.object({
   CRESIUM_PRODUCTION_API_URL: secureUrl,
   CRESIUM_DOCS_URL: secureUrl,
   TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  RATE_LIMIT_PER_MINUTE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_RATE_LIMIT_PER_MINUTE),
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+  NODE_ENV: z.string().optional(),
 });
+
+type Env = z.infer<typeof envSchema>;
+
+/** Settings that run but are probably not what the deploy meant; the server logs each once at startup. */
+function warningsFor(e: Env): readonly string[] {
+  return [
+    {
+      // TRUSTED_PROXY_HOPS keeps 0 as default: a wrong positive value would let callers forge their IP silently.
+      applies: e.NODE_ENV === "production" && e.TRUSTED_PROXY_HOPS === 0,
+      warning: SHARED_RATE_LIMIT_WARNING,
+    },
+  ].flatMap(({ applies, warning }) => (applies ? [warning] : []));
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const parsed = envSchema.safeParse(env);
@@ -40,6 +65,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     },
     docsUrl: e.CRESIUM_DOCS_URL,
     toolTimeoutMs: e.TOOL_TIMEOUT_MS,
+    rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
+    trustedProxyHops: e.TRUSTED_PROXY_HOPS,
     logLevel: e.LOG_LEVEL,
+    warnings: warningsFor(e),
   };
 }

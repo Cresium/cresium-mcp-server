@@ -16,8 +16,20 @@ export const LOG_LEVELS = [
   "silent",
 ] as const;
 
+export const SHARED_RATE_LIMIT_WARNING =
+  "TRUSTED_PROXY_HOPS is 0: behind a proxy all callers share one rate limit per pod, so one client can lock out everyone. Set it to the number of proxies in front of this server.";
+
 export const BAD_REQUEST_STATUS = 400;
 export const UNAUTHORIZED_STATUS = 401;
+export const TOO_MANY_REQUESTS_STATUS = 429;
+
+/**
+ * One real agent session makes a handful of requests per tool call (initialize, tools/list, the call)
+ * and bursts of parallel calls, so about 30 calls a minute is 100 to 150 requests. 300 leaves room for
+ * two or three agents behind one office address and still stops a script sending thousands of signed
+ * calls with made-up keys.
+ */
+export const DEFAULT_RATE_LIMIT_PER_MINUTE = 300;
 
 /**
  * The most bytes read from one upstream answer (Cresium's API or a docs page); past it the read stops.
