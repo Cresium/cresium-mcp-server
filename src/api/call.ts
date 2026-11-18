@@ -17,7 +17,7 @@ export function accessOf(operation: Operation): ToolAccess {
 }
 
 export function toJsonText(value: unknown): string {
-  return JSON.stringify(value, null, 2);
+  return JSON.stringify(value);
 }
 
 export async function sendRequest(

@@ -5,21 +5,23 @@ import {
 
 import { SERVER_INFO } from "../constants.ts";
 import { ToolError } from "../tools/errors.ts";
+import { BLOCK_SEPARATOR } from "./constants.ts";
 import type { MintlifyCall } from "./types.ts";
 
-function textOf(content: readonly { type: string; text?: string }[]): string {
+function textBlocksOf(
+  content: readonly { type: string; text?: string }[],
+): readonly string[] {
   return content
     .filter((block) => block.type === "text")
-    .map((block) => block.text ?? "")
-    .join("\n\n");
+    .map((block) => block.text ?? "");
 }
 
-/** Calls one tool on the docs site's Mintlify MCP server and returns its text. */
+/** Calls one tool on the docs site's Mintlify MCP server and returns its text blocks. */
 export async function callMintlify(
   docsUrl: string,
   { tool, args }: MintlifyCall,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<readonly string[]> {
   const client = new Client(SERVER_INFO);
   const transport = new StreamableHTTPClientTransport(
     new URL(`${docsUrl}/mcp`),
@@ -30,11 +32,13 @@ export async function callMintlify(
       { name: tool, arguments: args },
       { signal },
     );
-    const text = textOf(result.content);
+    const blocks = textBlocksOf(result.content);
     if (result.isError === true) {
-      throw new ToolError(`La docu respondió con un error: ${text}`);
+      throw new ToolError(
+        `La docu respondió con un error: ${blocks.join(BLOCK_SEPARATOR)}`,
+      );
     }
-    return text;
+    return blocks;
   } finally {
     await client.close();
   }

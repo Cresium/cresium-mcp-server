@@ -89,6 +89,11 @@ describe("searchOperations", () => {
     expect(first?.id).toBe(expected);
   });
 
+  it("finds the wallets operation through the synonym for billeteras", () => {
+    const ids = searchOperations("billeteras", 5).map(({ id }) => id);
+    expect(ids).toContain("GET /v3/balance/wallets");
+  });
+
   it("matches nothing for a blank query", () => {
     expect(searchOperations("  ", 5)).toEqual([]);
   });

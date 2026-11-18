@@ -123,7 +123,7 @@ const CALL_TOOLS = {
   read: {
     name: "read_api",
     description:
-      "Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. Para escribir usá write_api.",
+      "Ejecuta una operación GET de la API V3 de Cresium con las credenciales del partner y devuelve la respuesta JSON. Solo lectura. Para escribir usá write_api. Las búsquedas y los listados devuelven objetos grandes: pedí páginas chicas con pageSize (por ejemplo 5) y acotá con filtros.",
     wrongAccess: "escribe datos. Usá write_api para ejecutarla.",
     effect: { access: "read" },
   },

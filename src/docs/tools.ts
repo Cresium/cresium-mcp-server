@@ -3,8 +3,13 @@ import * as z from "zod";
 import type { ConnectionGuard } from "../api/types.ts";
 import { defineTool } from "../tools/define.ts";
 import type { ToolDef } from "../tools/types.ts";
-import { DOCS_FEEDBACK_UNKNOWN_OUTCOME, MINTLIFY_TOOLS } from "./constants.ts";
+import {
+  BLOCK_SEPARATOR,
+  DOCS_FEEDBACK_UNKNOWN_OUTCOME,
+  MINTLIFY_TOOLS,
+} from "./constants.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
+import { formatDocsSearch } from "./search.ts";
 
 export function createDocsTools(
   docsUrl: string,
@@ -13,7 +18,7 @@ export function createDocsTools(
   const searchDocs = defineTool({
     name: "search_docs",
     description:
-      "Busca en la documentación de Cresium (docs.cresium.com): guías, autenticación, webhooks, sandbox y referencia de la API. Devuelve fragmentos con el path de cada página.",
+      "Busca en la documentación de Cresium (docs.cresium.com): guías, autenticación, webhooks, sandbox y referencia de la API. Devuelve los primeros resultados, recortados, con el path de cada página; para una página completa usá read_doc_page.",
     input: z.object({
       query: z
         .string()
@@ -23,11 +28,12 @@ export function createDocsTools(
     access: "read",
     run: async ({ query }, ctx) => {
       await ensureConnected(ctx);
-      return await callMintlify(
+      const blocks = await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.search, args: { query, language: "es" } },
         ctx.signal,
       );
+      return formatDocsSearch(blocks);
     },
   });
 
@@ -60,11 +66,12 @@ export function createDocsTools(
     unknownOutcomeAdvice: DOCS_FEEDBACK_UNKNOWN_OUTCOME,
     run: async ({ path, feedback }, ctx) => {
       await ensureConnected(ctx);
-      return await callMintlify(
+      const blocks = await callMintlify(
         docsUrl,
         { tool: MINTLIFY_TOOLS.feedback, args: { path, feedback } },
         ctx.signal,
       );
+      return blocks.join(BLOCK_SEPARATOR);
     },
   });
 

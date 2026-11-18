@@ -343,6 +343,22 @@ describe("connection, dry run and tracing", () => {
     expect(result.text).toContain(hint);
   });
 
+  it("a default transaction search answer of realistic size stays under 50,000 characters", async () => {
+    const items = Array.from({ length: 10 }, (_, index) => ({
+      id: index,
+      description: "x".repeat(3_000),
+    }));
+    const sent = { data: { items } };
+    production.reply({ status: 200, body: JSON.stringify(sent) });
+    const result = await callTool(client, "read_api", {
+      operation: "GET /v3/transaction/search",
+    });
+    expect(result.isError).toBe(false);
+    expect(result.text.length).toBeLessThan(50_000);
+    expect(result.text).toBe(JSON.stringify(sent));
+    expect(client.getInstructions()?.length).toBeLessThan(1_500);
+  });
+
   it("a dry run returns the exact request and sends nothing", async () => {
     const result = await callTool(client, "write_api", {
       operation: "POST /v3/sandbox/deposit",

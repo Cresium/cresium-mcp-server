@@ -51,13 +51,13 @@ afterAll(async () => {
 });
 
 describe("callMintlify", () => {
-  it("returns the tool's text", async () => {
-    const text = await callMintlify(
+  it("returns the tool's text blocks", async () => {
+    const blocks = await callMintlify(
       docsUrl,
       { tool: MINTLIFY_TOOLS.search, args: { query: "webhook" } },
       signal,
     );
-    expect(text).toBe("resultados para webhook");
+    expect(blocks).toEqual(["resultados para webhook"]);
   });
 
   it("turns a Mintlify tool error into a ToolError", async () => {

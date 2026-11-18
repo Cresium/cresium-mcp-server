@@ -61,7 +61,7 @@ Claude.ai and ChatGPT on the web are not supported: they connect through OAuth a
 | `search_api`         | Finds V3 operations by keyword, in Spanish or English. With no query it lists every operation with its summary.              |
 | `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only.                          |
 | `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.                                 |
-| `search_docs`        | Searches docs.cresium.com.                                                                                                   |
+| `search_docs`        | Searches docs.cresium.com and returns the first results, shortened.                                                          |
 | `read_doc_page`      | Reads one docs page as Markdown.                                                                                             |
 | `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                                                    |
 
