@@ -76,7 +76,6 @@ describe.if(enabled)("sandbox end to end", () => {
       .sort();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "check_connection",
-      "diagnose_signature",
       "read_api",
       "read_doc_page",
       "search_api",
@@ -86,7 +85,6 @@ describe.if(enabled)("sandbox end to end", () => {
     ]);
     expect(readOnly).toEqual([
       "check_connection",
-      "diagnose_signature",
       "read_api",
       "read_doc_page",
       "search_api",

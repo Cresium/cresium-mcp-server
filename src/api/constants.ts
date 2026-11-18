@@ -87,7 +87,3 @@ export const UNMATCHED_FIELDS_NOTE =
 /** How to receive less from read_api once an answer was cut; the runner appends it to the cut note. */
 export const READ_API_NARROWING_ADVICE =
   "Pedí una página más chica con pageSize, acotá con los filtros de la operación o pedí solo los campos que necesitás con fields.";
-
-/** Bounds diagnose_signature's inputs: it hashes them about 20 times per call, with credentials nobody verified. */
-export const DIAGNOSE_MAX_BODY_LENGTH = 65_536;
-export const DIAGNOSE_MAX_URL_LENGTH = 4_096;
