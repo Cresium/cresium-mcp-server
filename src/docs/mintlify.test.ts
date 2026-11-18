@@ -3,6 +3,8 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
+import { startEndlessUpstream } from "../../test/support/endless-upstream.ts";
+import { MAX_UPSTREAM_BODY_BYTES } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
 import { MINTLIFY_TOOLS } from "./constants.ts";
 import { callMintlify, fetchDocPage } from "./mintlify.ts";
@@ -98,5 +100,24 @@ describe("fetchDocPage", () => {
     );
     expect(error).toBeInstanceOf(UserFacingError);
     expect(otherHostHits).toBe(0);
+  });
+});
+
+describe("fetchDocPage with a page that never ends", () => {
+  it("stops reading past the limit, hangs up and says so", async () => {
+    const endless = startEndlessUpstream();
+    const error: unknown = await fetchDocPage(
+      endless.baseUrl,
+      "sandbox",
+      signal,
+    ).catch((thrown: unknown) => thrown);
+    if (!(error instanceof UserFacingError)) throw new Error("did not fail");
+    expect(error.message).toContain("2 MiB");
+    for (let wait = 0; wait < 100 && !endless.state.cancelled; wait += 1) {
+      await Bun.sleep(10);
+    }
+    expect(endless.state.cancelled).toBe(true);
+    expect(endless.state.sentBytes).toBeLessThan(MAX_UPSTREAM_BODY_BYTES * 3);
+    await endless.stop();
   });
 });

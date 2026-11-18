@@ -56,3 +56,10 @@ export type SearchGolden = { readonly phrase: string } & (
   | { readonly none: true }
   | { readonly notFirst: string }
 );
+
+export interface EndlessUpstream {
+  readonly baseUrl: string;
+  /** What the server produced, and whether the client closed the connection. */
+  readonly state: { sentBytes: number; cancelled: boolean };
+  stop(): Promise<void>;
+}

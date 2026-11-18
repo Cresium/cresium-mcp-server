@@ -3,9 +3,10 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 
-import { SERVER_INFO } from "../constants.ts";
+import { readTextWithin } from "../body.ts";
+import { MAX_UPSTREAM_BODY_BYTES, SERVER_INFO } from "../constants.ts";
 import { UserFacingError } from "../errors.ts";
-import { BLOCK_SEPARATOR } from "./constants.ts";
+import { BLOCK_SEPARATOR, DOCS_PAGE_TOO_LARGE } from "./constants.ts";
 import type { MintlifyCall } from "./types.ts";
 
 function textBlocksOf(
@@ -54,8 +55,9 @@ export async function fetchDocPage(
     .replace(/^\/+/, "")
     .replace(/\.mdx?$/, "");
   // A redirect is not followed: it could point this server at a host other than the docs site.
+  const hangUp = new AbortController();
   const response = await fetch(`${docsUrl}/${normalized}.md`, {
-    signal,
+    signal: AbortSignal.any([signal, hangUp.signal]),
     redirect: "manual",
   });
   if (!response.ok) {
@@ -63,5 +65,7 @@ export async function fetchDocPage(
       `No encontré la página "${path}" (${response.status}). Usá search_docs para encontrar el path correcto.`,
     );
   }
-  return await response.text();
+  const page = await readTextWithin(response, MAX_UPSTREAM_BODY_BYTES, hangUp);
+  if (page == null) throw new UserFacingError(DOCS_PAGE_TOO_LARGE);
+  return page;
 }

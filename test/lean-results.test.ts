@@ -9,8 +9,10 @@ import {
 
 import type { Client } from "@modelcontextprotocol/client";
 
+import { API_WRITE_UNKNOWN_OUTCOME } from "../src/api/constants.ts";
 import { MAX_RESULT_CHARS } from "../src/tools/constants.ts";
 import { callTool } from "./support/call-tool.ts";
+import { startEndlessUpstream } from "./support/endless-upstream.ts";
 import { startFakeCresium } from "./support/fake-cresium.ts";
 import { startApp } from "./support/start-app.ts";
 import { transactionPage } from "./support/transaction.ts";
@@ -142,5 +144,30 @@ describe("the result limit", () => {
     fake.reply({ status: 200, body: transactionPage(100) });
     const result = await callTool(client, "read_api", SEARCH);
     expect(result.text).not.toContain("Resultado cortado");
+  });
+});
+
+describe("an upstream answer that never ends", () => {
+  it("tells the agent a read was dropped and that a write may have been applied", async () => {
+    const endless = startEndlessUpstream();
+    const runaway = await startApp({
+      sandbox: endless.baseUrl,
+      production: endless.baseUrl,
+      docs: endless.baseUrl,
+    });
+    const connected = await runaway.connect("sandbox", HEADERS);
+    const read = await callTool(connected, "read_api", SEARCH);
+    expect(read.isError).toBe(true);
+    expect(read.text).toContain("2 MiB");
+    const write = await callTool(connected, "write_api", {
+      operation: "POST /v3/deposit-address/cvu",
+      body: { value: "a.b" },
+    });
+    expect(write.isError).toBe(true);
+    expect(write.text).toContain("La escritura se envió");
+    expect(write.text).toContain(API_WRITE_UNKNOWN_OUTCOME);
+    await connected.close();
+    runaway.stop();
+    await endless.stop();
   });
 });
