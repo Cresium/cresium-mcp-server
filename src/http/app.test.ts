@@ -436,6 +436,8 @@ describe("API tools", () => {
 });
 
 describe("a call the client cancels", () => {
+  const WELL_UNDER_THE_TOOL_TIMEOUT_MS = 1000;
+
   it("aborts the call to Cresium as soon as a modern client closes the request", async () => {
     const reached = Promise.withResolvers();
     const aborted = Promise.withResolvers<number>();
@@ -473,8 +475,9 @@ describe("a call the client cancels", () => {
       const cancelledAt = performance.now();
       controller.abort();
       await call;
-      // start-app sets a 5 s tool timeout; well under it means the cancel itself got through.
-      expect((await aborted.promise) - cancelledAt).toBeLessThan(1000);
+      expect((await aborted.promise) - cancelledAt).toBeLessThan(
+        WELL_UNDER_THE_TOOL_TIMEOUT_MS,
+      );
     } finally {
       await client.close();
       slowApp.stop();
