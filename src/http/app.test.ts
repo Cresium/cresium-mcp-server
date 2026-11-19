@@ -435,6 +435,54 @@ describe("API tools", () => {
   });
 });
 
+describe("a call the client cancels", () => {
+  it("aborts the call to Cresium as soon as a modern client closes the request", async () => {
+    const reached = Promise.withResolvers();
+    const aborted = Promise.withResolvers<number>();
+    const hanging = Bun.serve({
+      port: 0,
+      fetch: (request) =>
+        new Promise<Response>((resolve) => {
+          request.signal.addEventListener("abort", () => {
+            aborted.resolve(performance.now());
+            resolve(new Response(null));
+          });
+          reached.resolve();
+        }),
+    });
+    const slowApp = await startApp({
+      sandbox: `http://localhost:${hanging.port}`,
+      production: `http://localhost:${hanging.port}`,
+      docs: "http://localhost:9",
+    });
+    const client = await slowApp.connect("sandbox", HEADERS, {
+      versionNegotiation: { mode: { pin: "2026-07-28" } },
+    });
+    const controller = new AbortController();
+    try {
+      const call = client
+        .callTool(
+          {
+            name: "read_api",
+            arguments: { operation: "GET /v3/balance/wallets" },
+          },
+          { signal: controller.signal },
+        )
+        .catch(() => undefined);
+      await reached.promise;
+      const cancelledAt = performance.now();
+      controller.abort();
+      await call;
+      // start-app sets a 5 s tool timeout; well under it means the cancel itself got through.
+      expect((await aborted.promise) - cancelledAt).toBeLessThan(1000);
+    } finally {
+      await client.close();
+      slowApp.stop();
+      await hanging.stop(true);
+    }
+  });
+});
+
 describe("an unreachable Cresium API", () => {
   let unreachable: RunningApp;
   let client: Client;
