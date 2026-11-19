@@ -462,7 +462,7 @@ describe("a call the client cancels", () => {
     });
     const controller = new AbortController();
     try {
-      const call = client
+      const outcome = client
         .callTool(
           {
             name: "read_api",
@@ -470,11 +470,14 @@ describe("a call the client cancels", () => {
           },
           { signal: controller.signal },
         )
-        .catch(() => undefined);
+        .then(
+          () => "answered",
+          () => "cancelled",
+        );
       await reached.promise;
       const cancelledAt = performance.now();
       controller.abort();
-      await call;
+      expect(await outcome).toBe("cancelled");
       expect((await aborted.promise) - cancelledAt).toBeLessThan(
         WELL_UNDER_THE_TOOL_TIMEOUT_MS,
       );
