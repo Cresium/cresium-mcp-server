@@ -1,0 +1,29 @@
+name: Docs MCP contract
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  contract:
+    name: bun run test:docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Bun on a GitHub runner does not read ~/.npmrc (it looks in $XDG_CONFIG_HOME), so the token goes in the project's .npmrc.
+        run: |
+          trap "rm -f .npmrc" EXIT
+          printf "//registry.npmjs.org/:_authToken=%s\n" "${NPM_TOKEN}" > .npmrc
+          bun install --frozen-lockfile
+
+      - run: bun run test:docs

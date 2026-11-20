@@ -1,0 +1,23 @@
+name: SleakOps
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sleakops-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    uses: ./.github/workflows/sleakops-build.yml
+    secrets: inherit
+
+  deploy:
+    name: deploy
+    needs: build
+    uses: ./.github/workflows/sleakops-deploy.yml
+    secrets: inherit

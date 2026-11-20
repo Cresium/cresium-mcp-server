@@ -1,0 +1,5 @@
+bun.lock
+node_modules/
+coverage/
+# Generated: the generator writes it as-is.
+src/api/operations.json

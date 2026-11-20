@@ -1,5 +1,8 @@
 node_modules/
-build/
 .env
+.env.*
+!.env.example
+coverage/
+*.tsbuildinfo
 CLAUDE.md
 .claude/

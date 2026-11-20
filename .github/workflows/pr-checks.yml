@@ -1,0 +1,38 @@
+name: PR Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: bun run check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Bun on a GitHub runner does not read ~/.npmrc (it looks in $XDG_CONFIG_HOME), so the token goes in the project's .npmrc.
+        run: |
+          trap "rm -f .npmrc" EXIT
+          printf "//registry.npmjs.org/:_authToken=%s\n" "${NPM_TOKEN}" > .npmrc
+          bun install --frozen-lockfile
+
+      - run: bun run check
+
+      - name: Build image
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: docker build --build-arg NPM_TOKEN="$NPM_TOKEN" -t cresium-mcp:ci .

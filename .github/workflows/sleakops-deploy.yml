@@ -1,0 +1,101 @@
+name: SleakOps deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Image tag to deploy
+        required: false
+        default: latest
+  workflow_call:
+    inputs:
+      image:
+        type: string
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sleakops-deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  SLEAKOPS_PROJECT: cresium-mcp
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve environment
+        id: target
+        run: |
+          case "$GITHUB_REF_NAME" in
+            staging) echo "environment=develop" >> "$GITHUB_OUTPUT" ;;
+            main) echo "environment=prod" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Run this workflow from staging or main" && exit 1 ;;
+          esac
+
+      - name: Install SleakOps CLI
+        run: pipx install sleakops
+
+      - name: Run SleakOps deploy
+        id: deploy
+        env:
+          SLEAKOPS_KEY: ${{ secrets.SLEAKOPS_KEY }}
+          IMAGE: ${{ inputs.image }}
+        run: sleakops deploy -p "$SLEAKOPS_PROJECT" -e "${{ steps.target.outputs.environment }}" -t "$IMAGE" -w
+
+      - name: Build Slack payload
+        id: payload
+        if: always() && steps.deploy.outcome != 'skipped'
+        env:
+          RESULT: ${{ steps.deploy.outcome }}
+          ENVIRONMENT: ${{ steps.target.outputs.environment }}
+          IMAGE: ${{ inputs.image }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.event.repository.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULT" = "success" ]; then emoji=":rocket:"; status="Deploy completado"; else emoji=":x:"; status="Deploy fallido"; fi
+          finished=$(TZ=America/Argentina/Buenos_Aires date '+%d/%m/%Y %H:%M')
+          payload=$(jq -n \
+            --arg emoji "$emoji" \
+            --arg status "$status" \
+            --arg env "$ENVIRONMENT" \
+            --arg image "$IMAGE" \
+            --arg ref "$REF" \
+            --arg sha "${SHA:0:7}" \
+            --arg actor "$ACTOR" \
+            --arg repo "$REPO" \
+            --arg finished "$finished" \
+            --arg run "$RUN_URL" \
+            '{
+              text: "\($emoji) \($status) — \($repo) en \($env)",
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "\($emoji) *\($status)* — *\($repo)* en `\($env)`\n*Rama:* `\($ref)` · *Commit:* `\($sha)` · *Imagen:* `\($image)`\n*Por:* \($actor) · *Terminó:* \($finished) (ART)\n<\($run)|Ver run>"
+                  }
+                }
+              ]
+            }')
+          {
+            echo "json<<PAYLOAD_EOF"
+            echo "$payload"
+            echo "PAYLOAD_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack
+        if: always() && steps.payload.outputs.json != ''
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.PR_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: ${{ steps.payload.outputs.json }}

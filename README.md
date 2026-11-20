@@ -4,186 +4,123 @@
 
 # Cresium MCP Server
 
-MCP (Model Context Protocol) server the [Cresium](https://cresium.app) API. Enables AI tools like Claude Code and Claude Desktop to manage transactions, payments, invoices, and balances through the Cresium Partner API (V3).
+A remote MCP (Model Context Protocol) server for the [Cresium](https://cresium.app) Partner API (V3) and its docs. Paste a URL into your AI agent, add your API key in three headers, and the agent can read the docs and call every V3 endpoint. There is nothing to clone or build.
 
-## Prerequisites
+| URL                                  | Calls                             |
+| ------------------------------------ | --------------------------------- |
+| `https://mcp.cresium.app/sandbox`    | `https://api.develop.cresium.app` |
+| `https://mcp.cresium.app/production` | `https://api.cresium.app`         |
 
-You need a Cresium partner account with:
+The MCP can do anything your API key can do through the API, in both environments. Use a sandbox key on `/sandbox` and a production key on `/production`.
 
-- **API Key** (`apiKey`)
-- **Secret** (`secret`)
-- **Company ID** (`companyId`)
+## Connect
 
-These are available from the Cresium Dashboard under your partner settings.
-
-## Installation
+You need your partner **API key**, **secret** and **company ID** from the Cresium Dashboard.
 
 ### Claude Code
 
 ```bash
-claude mcp add cresium-server \
-  -e CRESIUM_API_KEY=your_api_key \
-  -e CRESIUM_SECRET=your_secret \
-  -e CRESIUM_COMPANY_ID=your_company_id \
-  -- node /absolute/path/to/cresium-mcp-server/build/index.js
+claude mcp add --transport http cresium https://mcp.cresium.app/sandbox \
+  --header "x-api-key: YOUR_API_KEY" \
+  --header "x-api-secret: YOUR_SECRET" \
+  --header "x-company-id: YOUR_COMPANY_ID"
 ```
 
-### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
+### Cursor (`~/.cursor/mcp.json`)
 
 ```json
 {
   "mcpServers": {
     "cresium": {
-      "command": "node",
-      "args": ["/absolute/path/to/cresium-mcp-server/build/index.js"],
-      "env": {
-        "CRESIUM_API_KEY": "your_api_key",
-        "CRESIUM_SECRET": "your_secret",
-        "CRESIUM_COMPANY_ID": "your_company_id"
+      "url": "https://mcp.cresium.app/sandbox",
+      "headers": {
+        "x-api-key": "YOUR_API_KEY",
+        "x-api-secret": "YOUR_SECRET",
+        "x-company-id": "YOUR_COMPANY_ID"
       }
     }
   }
 }
 ```
 
-### Build from source
+### Codex (`~/.codex/config.toml`)
+
+```toml
+[mcp_servers.cresium]
+url = "https://mcp.cresium.app/sandbox"
+http_headers = { "x-api-key" = "YOUR_API_KEY", "x-api-secret" = "YOUR_SECRET", "x-company-id" = "YOUR_COMPANY_ID" }
+```
+
+Claude.ai and ChatGPT on the web are not supported: they connect through OAuth and cannot send these headers.
+
+## Tools
+
+| Tool                 | Does                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `check_connection`   | Proves your credentials work and says which environment you are on. On an authentication failure it names the header to fix. |
+| `search_api`         | Finds V3 operations by keyword, in Spanish or English. With no query it lists every operation with its summary.              |
+| `read_api`           | Runs a `GET` operation, for example `{ "operation": "GET /v3/balance/wallets" }`. Marked read-only.                          |
+| `write_api`          | Runs any operation that is not a `GET`. Not read-only, so your agent asks before running it.                                 |
+| `search_docs`        | Searches docs.cresium.com and returns the first results, shortened.                                                          |
+| `read_doc_page`      | Reads one docs page as Markdown.                                                                                             |
+| `send_docs_feedback` | Reports a wrong or missing docs page to the Cresium team.                                                                    |
+
+The docs tools also need valid credentials: the server checks them against Cresium before it forwards the call.
+
+`POST /v3/invoice/read` is not available because it uploads files from your disk. Call it through the API directly.
+
+### Dry run
+
+`read_api` and `write_api` accept `"dryRun": true`. The server then sends nothing and returns the exact request: method, full URL, body, and `signedText`, the text your own code must sign. Use it to see a write before it runs, or to find why your code gets `Invalid signature`.
+
+### Prompts
+
+Your agent's prompt menu offers two ready-made tasks:
+
+| Prompt                    | Does                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `integrar_cvus_dedicados` | Runs the dedicated CVU flow in sandbox, then writes the signing client and the webhook in your project. |
+| `depurar_firma`           | Compares the request your code signs with the one this server signs and shows the difference.           |
+
+### Errors
+
+The server rejects a top-level body field the API does not declare, so a typo such as `ammount` fails with the list of valid fields instead of being ignored.
+
+## How it works
+
+```
+agent ──POST /sandbox── headers: x-api-key · x-api-secret · x-company-id
+  │
+  ▼
+cresium-mcp  (src/http/app.ts)
+  ├─ partner/credentials.ts   reads the 3 headers; 401 if one is missing
+  ├─ mcp/server.ts            one MCP server per request, bound to the environment
+  ├─ api/tools.ts             check_connection · search_api · read_api · write_api over api/operations.json
+  │    └─ cresium/client.ts   signs HMAC-SHA256(secret, "timestamp|METHOD|url|body") and calls V3
+  └─ docs/tools.ts            passes through to docs.cresium.com/mcp (Mintlify)
+```
+
+- The server stores no credentials: they live only for the request that carries them. It keeps in memory a one-way hash that says "these credentials worked"; the hash is gone on restart. A success is trusted for 10 minutes, so a docs tool logs one `GET /v3/balance/wallets` check per credential every 10 minutes instead of one per use.
+- Logs are JSON lines (Pino). Each tool call logs the environment, company, the API key's last 4 characters, the tool, the V3 operation, its status and duration. The secret and the full key are never logged, and `src/http/app.test.ts` checks this.
+- Each call to the API carries the `User-Agent` `cresium-mcp-server/<version>`.
+- The logger censors the `x-api-key` and `x-api-secret` headers and any `apiKey` or `secret` field, in case new code ever logs them.
+- `src/api/operations.json` is generated from `Cresium/bible`'s `openapi.json`. The API's deploy workflow in `mage` regenerates it and pushes it to `main` after each production deploy. Run `bun run spec:update` by hand to refresh it sooner.
+
+## Develop
 
 ```bash
-git clone <repo-url>
-cd cresium-mcp-server
-npm install
-npm run build
+cp .env.example .env
+bun install
+bun run dev          # http://localhost:3000/sandbox
+bun run check        # format, lint, typecheck, unit tests
 ```
 
-## Environment Variables
+The end-to-end test against the real sandbox needs `CRESIUM_API_KEY`, `CRESIUM_SECRET` and `CRESIUM_COMPANY_ID` in `.env`:
 
-| Variable             | Required | Description                                                                     |
-| -------------------- | -------- | ------------------------------------------------------------------------------- |
-| `CRESIUM_API_KEY`    | Yes      | Partner API key                                                                 |
-| `CRESIUM_SECRET`     | Yes      | Partner secret for HMAC signing                                                 |
-| `CRESIUM_COMPANY_ID` | Yes      | Company ID to operate on                                                        |
-| `CRESIUM_BASE_URL`   | No       | API URL. Defaults to `https://api.cresium.app`. Staging: `https://api.develop.cresium.app` |
-
-## Available Tools
-
-### Balances and investments
-
-| Tool                            | Description                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------- |
-| `get_balance`                   | Wallet balances (balance, locked, invested, available) per currency             |
-| `get_investment_fund_positions` | Investment fund positions with units held, current value and fund details       |
-
-### Transactions
-
-| Tool                      | Description                                                              |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `search_transactions`     | Search with filters (date, type, operation type, direction, tag, status) |
-| `get_transaction`         | Get a single transaction by ID                                           |
-| `get_transaction_receipt` | Download the transaction receipt as a PDF                                |
-| `lookup_bank_address`     | Look up a CBU/CVU/alias to get the address ID used as `toId`             |
-| `create_transfer_preview` | Create a transfer in PREVIEW status (does not move money)                |
-| `confirm_transaction`     | Confirm a previewed transaction                                          |
-| `reverse_transaction`     | Refund a received deposit back to its sender                             |
-
-### Collections — one-off payment orders (V2)
-
-| Tool                    | Description                                                             |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `create_payment_order`  | Create a one-off collection and get a dedicated CVU to receive it        |
-| `search_payment_orders` | List payment orders with their status and amount collected               |
-| `get_payment_order`     | Get one payment order by your own `externalId`                          |
-| `delete_payment_order`  | Delete an unpaid order and take down its CVU                            |
-
-### Collections — CVU management (V1, deprecated)
-
-| Tool                           | Description                                       |
-| ------------------------------ | ------------------------------------------------- |
-| `list_deposit_addresses`       | List all active CVUs and aliases                  |
-| `get_deposit_address`          | Get one CVU with its alias                        |
-| `create_deposit_address`       | Issue a new CVU                                   |
-| `update_deposit_address_alias` | Rename the alias of an active CVU                 |
-| `delete_deposit_address`       | Take down a CVU (irreversible)                    |
-
-### Signature requests
-
-| Tool                        | Description                                                   |
-| --------------------------- | ------------------------------------------------------------- |
-| `search_signature_requests` | List signature requests and their status                      |
-| `create_signature_request`  | Request signer approval for a transaction, bulk or payroll    |
-| `reject_signature_request`  | Reject a pending request (approval is Dashboard-only)         |
-
-### Accounts payable and receivable
-
-| Tool                       | Description                                              |
-| -------------------------- | -------------------------------------------------------- |
-| `create_payments`          | Create payments (accounts payable)                       |
-| `list_payments`            | List all company payments                                |
-| `read_payments_from_files` | Extract payment data from PDFs/images via OCR            |
-| `create_invoices`          | Create invoices (accounts receivable)                    |
-| `list_invoices`            | List all company invoices                                |
-| `read_invoices_from_files` | Extract invoice data from PDFs/images via OCR            |
-
-### Other
-
-| Tool           | Description              |
-| -------------- | ------------------------ |
-| `health_check` | Check API availability   |
-
-## Typical Workflow
-
-### Send a transfer
-
-1. **Look up the destination**: `lookup_bank_address` with the CBU/CVU/alias
-2. **Create a preview**: `create_transfer_preview` with the address ID, amount, and currency
-3. **Request approval**: `create_signature_request` with the transaction ID (signers approve from Dashboard)
-
-### Check balances and transactions
-
-1. **Get balances**: `get_balance` to see available funds per currency
-2. **Search transactions**: `search_transactions` with date or status filters
-3. **Get details**: `get_transaction` with a specific transaction ID
-
-### Collect a one-off payment
-
-1. **Create the order**: `create_payment_order` with the expected amount and your own reference — returns a dedicated CVU
-2. **Share the CVU** with the payer, and persist it to match incoming `DEPOSIT` webhooks
-3. **Track it**: `get_payment_order` with your reference to see `status` and `amountPaid`
-
-The CVU is taken down automatically once the order is paid or expires.
-
-### Load invoices from files
-
-1. **Extract**: `read_invoices_from_files` with local PDF/image paths — OCR only, nothing is saved
-2. **Review** the extracted data
-3. **Create**: `create_invoices` with the reviewed values
-
-## Permissions
-
-Some tools require a partner permission to be enabled on your account, otherwise the API
-returns `403 FORBIDDEN`:
-
-| Permission              | Tools                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `CREATE_CVU`            | `create_deposit_address`, `create_payment_order`, `delete_payment_order`                          |
-| `UPDATE_CVU`            | `update_deposit_address_alias`                                                                    |
-| `SEARCH_PAYMENT_ORDERS` | `search_payment_orders`, `get_payment_order`                                                      |
-
-Contact the Cresium team to enable them.
-
-## Authentication
-
-All requests are signed using HMAC-SHA256. The server handles this transparently:
-
-```
-signature = HMAC-SHA256("{timestamp}|{METHOD}|{path+query}|{body}", secret) → base64
+```bash
+bun run test:sandbox
 ```
 
-The signed path includes the query string exactly as sent. Headers sent on every request:
-`x-api-key`, `x-company-id`, `x-timestamp`, `x-signature`. Requests are rejected if the
-timestamp is more than 60 seconds old, so keep the host clock NTP-synced.
+## Deploy
 
-## License
-
-MIT
+The repo deploys with SleakOps (`.github/workflows/sleakops*.yml`, project `cresium-mcp`), and Doppler injects the environment from `.env.example`. Run the `SleakOps` workflow by hand from `staging` to deploy to develop, or from `main` to deploy to production. On a PR, comment `@claude` to get a Cresium-mode review.

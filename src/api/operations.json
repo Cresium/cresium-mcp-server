@@ -1,0 +1,1162 @@
+[
+  {
+    "id": "POST /v3/deposit-address/cvu",
+    "method": "POST",
+    "path": "/v3/deposit-address/cvu",
+    "summary": "Emitir un CVU dedicado",
+    "description": "Emite un CVU dedicado con el alias indicado en `value` y devuelve el número de CVU en `value` del resultado: guardalo asociado a tu cliente. Cada depósito que entra llega por el webhook `DEPOSIT`, con el CVU en `depositAddress`. El CVU no tiene monto esperado ni vencimiento: recibe depósitos hasta que lo des de baja. Cada empresa puede tener hasta 300 CVUs dedicados activos, ampliable con el equipo de Cresium, y cada transacción tiene una comisión: el feature se activa contactando a Cresium. Errores: `INVALID_ALIAS` si el alias no cumple el formato y `EXISTING_ALIAS` si ya está en uso.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "description": "Alias que va a tener el CVU que se emite.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "GET /v3/deposit-address/",
+    "method": "GET",
+    "path": "/v3/deposit-address/",
+    "summary": "Listar CVUs dedicados",
+    "description": "Lista los CVUs dedicados activos con sus alias. Un CVU y su alias comparten `externalId`. Los CVUs de pagos únicos no aparecen acá.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [],
+    "body": null
+  },
+  {
+    "id": "GET /v3/deposit-address/{cvu}",
+    "method": "GET",
+    "path": "/v3/deposit-address/{cvu}",
+    "summary": "Buscar un CVU dedicado",
+    "description": "Devuelve un CVU dedicado por su número, junto con su alias si tiene. Solo resuelve números de CVU de la empresa, no alias. Error: `NOT_FOUND` si no existe.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [
+      {
+        "name": "cvu",
+        "in": "path",
+        "required": true,
+        "description": "Número de CVU, de 22 dígitos.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "PUT /v3/deposit-address/{address}",
+    "method": "PUT",
+    "path": "/v3/deposit-address/{address}",
+    "summary": "Cambiar el alias de un CVU dedicado",
+    "description": "Cambia el alias de un CVU dedicado; el número de CVU no cambia. Solo funciona con CVUs activos: si está dado de baja, reactivalo antes con `POST /v3/deposit-address/{address}/reactivate`. Errores: `NOT_FOUND`, `INVALID_ALIAS`, `EXISTING_ALIAS` y `TOO_MANY_ALIAS_UPDATES` o `MAX_ALIAS_UPDATES_REACHED` si se superó el límite de cambios de alias.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [
+      {
+        "name": "address",
+        "in": "path",
+        "required": true,
+        "description": "Número de CVU, de 22 dígitos.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "description": "Nuevo alias del CVU.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "DELETE /v3/deposit-address/{address}",
+    "method": "DELETE",
+    "path": "/v3/deposit-address/{address}",
+    "summary": "Dar de baja un CVU dedicado",
+    "description": "Da de baja un CVU dedicado: deja de recibir depósitos, pero los ya acreditados se mantienen. La baja no es definitiva: se recupera el mismo número con `POST /v3/deposit-address/{address}/reactivate`. Errores: `NOT_FOUND` si no hay un CVU activo con ese número e `INVALID_ADDRESS` si es el CVU de un pago único, que se cierra con `DELETE /v3/payment-order/{externalId}`.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [
+      {
+        "name": "address",
+        "in": "path",
+        "required": true,
+        "description": "Número de CVU, de 22 dígitos.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/deposit-address/{address}/reactivate",
+    "method": "POST",
+    "path": "/v3/deposit-address/{address}/reactivate",
+    "summary": "Reactivar un CVU dedicado",
+    "description": "Reactiva un CVU dado de baja, con el mismo número. El alias puede no sobrevivir a la baja: si el anterior sigue apuntando al CVU se restaura, y si no, queda sin alias y se asigna uno con `PUT /v3/deposit-address/{address}`. Si el CVU ya estaba activo, no hace nada. Errores: `NOT_FOUND`, `INVALID_ADDRESS` si es el CVU de un pago único, `CVU_NOT_REACTIVATED` si el banco no confirmó la reactivación (el CVU sigue de baja: emití uno nuevo con `POST /v3/deposit-address/cvu`) y `EXTERNAL_PROVIDER_ERROR` si el banco devolvió un error.",
+    "tags": [
+      "Emisión y gestión de CVUs Dedicados"
+    ],
+    "parameters": [
+      {
+        "name": "address",
+        "in": "path",
+        "required": true,
+        "description": "Número de CVU, de 22 dígitos.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "GET /v3/payment-order/",
+    "method": "GET",
+    "path": "/v3/payment-order/",
+    "summary": "Buscar pagos únicos",
+    "description": "Lista los pagos únicos con paginación por cursor, filtrando por `externalId` o por fecha de creación. Cada orden trae su `status` y `amountPaid`.",
+    "tags": [
+      "Emisión y gestión de Pagos Únicos"
+    ],
+    "parameters": [
+      {
+        "name": "externalId",
+        "in": "query",
+        "required": false,
+        "description": "Tu referencia del cobro. Es única por empresa.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "fromDate",
+        "in": "query",
+        "required": false,
+        "description": "Fecha de creación desde, inclusive.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "toDate",
+        "in": "query",
+        "required": false,
+        "description": "Fecha de creación hasta, inclusive.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "ID de la última orden de la página anterior.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "pageSize",
+        "in": "query",
+        "required": false,
+        "description": "Órdenes por página. Por defecto 10, máximo 100.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/payment-order/",
+    "method": "POST",
+    "path": "/v3/payment-order/",
+    "summary": "Crear un pago único",
+    "description": "Crea un pago único: un cobro puntual con un CVU de un solo uso, que se devuelve en `depositAddress`. Cada depósito que entra suma a `amountPaid`, actualiza el `status` y llega por el webhook `DEPOSIT` con la orden en `paymentOrder`. Con `expiresIn` (por defecto 24 h) se define cuánto queda abierto: cuando la orden pasa a `PAID` o `EXPIRED`, el CVU se da de baja y deja de recibir depósitos, pero los ya acreditados se mantienen.",
+    "tags": [
+      "Emisión y gestión de Pagos Únicos"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "alias",
+        "paymentOrder"
+      ],
+      "properties": {
+        "alias": {
+          "description": "Alias del CVU que se emite para este cobro.",
+          "type": "string"
+        },
+        "paymentOrder": {
+          "description": "Datos del cobro.",
+          "type": "object",
+          "required": [
+            "externalId",
+            "amount"
+          ],
+          "properties": {
+            "externalId": {
+              "description": "Tu referencia del cobro. Es única por empresa.",
+              "type": "string"
+            },
+            "amount": {
+              "exclusiveMinimum": 0,
+              "description": "Monto esperado del cobro.",
+              "type": "number"
+            },
+            "title": {
+              "description": "Título del cobro.",
+              "type": "string"
+            },
+            "description": {
+              "description": "Descripción del cobro.",
+              "type": "string"
+            },
+            "metadata": {
+              "maxProperties": 50,
+              "description": "Datos propios clave/valor para conciliar de tu lado. Hasta 50 claves de hasta 40 caracteres, sin corchetes, con valores de hasta 500 caracteres.",
+              "type": "object",
+              "additionalProperties": {
+                "maxLength": 500,
+                "type": "string"
+              }
+            },
+            "expiresIn": {
+              "description": "Tiempo hasta que la orden vence, como duración (`30m`, `24h`, `7d`). Mínimo 30 minutos, máximo 30 días. Por defecto `24h`.",
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "GET /v3/payment-order/{externalId}",
+    "method": "GET",
+    "path": "/v3/payment-order/{externalId}",
+    "summary": "Buscar un pago único por externalId",
+    "description": "Devuelve un pago único por tu `externalId`. Error: `NOT_FOUND` si no existe.",
+    "tags": [
+      "Emisión y gestión de Pagos Únicos"
+    ],
+    "parameters": [
+      {
+        "name": "externalId",
+        "in": "path",
+        "required": true,
+        "description": "Tu referencia del cobro. Es única por empresa.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "DELETE /v3/payment-order/{externalId}",
+    "method": "DELETE",
+    "path": "/v3/payment-order/{externalId}",
+    "summary": "Borrar un pago único",
+    "description": "Da de baja un pago único y su CVU. Solo se puede borrar si está en `NOT_PAID` o `EXPIRED`. Errores: `NOT_FOUND` si no existe e `INVALID_DATA` si está en `PARTIAL` o `PAID`.",
+    "tags": [
+      "Emisión y gestión de Pagos Únicos"
+    ],
+    "parameters": [
+      {
+        "name": "externalId",
+        "in": "path",
+        "required": true,
+        "description": "Tu referencia del cobro. Es única por empresa.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "GET /v3/balance/",
+    "method": "GET",
+    "path": "/v3/balance/",
+    "summary": "Consultar las cuentas CVU de la Company y sus saldos",
+    "description": "Devuelve los CVU principales de la empresa, cada uno con su wallet, y el saldo total por moneda. Una empresa puede tener más de un CVU principal, cada uno con su propio wallet.",
+    "tags": [
+      "Saldos"
+    ],
+    "parameters": [],
+    "body": null
+  },
+  {
+    "id": "GET /v3/balance/wallets",
+    "method": "GET",
+    "path": "/v3/balance/wallets",
+    "summary": "Consultar el saldo del CVU principal (descontinuado)",
+    "description": "Descontinuado: devuelve un solo saldo, el del wallet del CVU principal en pesos (ARS) de la empresa, aunque la empresa tenga más de una cuenta CVU. Usá `GET /v3/balance`, que devuelve todas las cuentas CVU con su wallet y el saldo total por moneda.",
+    "tags": [
+      "Saldos"
+    ],
+    "parameters": [],
+    "body": null
+  },
+  {
+    "id": "GET /v3/investment-fund/positions",
+    "method": "GET",
+    "path": "/v3/investment-fund/positions",
+    "summary": "Consultar posiciones en fondos de inversión de la Company",
+    "description": "Devuelve las posiciones de la empresa en fondos de inversión. Cada posición es la tenencia de cuotapartes de un fondo, asociada a una cuenta de la empresa.",
+    "tags": [
+      "Fondos de Inversión"
+    ],
+    "parameters": [],
+    "body": null
+  },
+  {
+    "id": "GET /v3/transaction/{id}",
+    "method": "GET",
+    "path": "/v3/transaction/{id}",
+    "summary": "Obtener detalle de una transacción por ID",
+    "description": "Devuelve una transacción por su ID, con sus cuentas, montos, estado y contacto. Errores: `NOT_FOUND` si no existe y `NOT_OWNER` si es de otra empresa.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID de la transacción.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "GET /v3/transaction/search",
+    "method": "GET",
+    "path": "/v3/transaction/search",
+    "summary": "Buscar transacciones con filtros",
+    "description": "Lista las transacciones de la empresa con filtros y paginación por cursor. Para pedir la página siguiente, mandá como `cursor` el de la respuesta.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [
+      {
+        "name": "fromDate",
+        "in": "query",
+        "required": false,
+        "description": "Inicio del rango de búsqueda, sobre la fecha de procesamiento, en ISO 8601.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "toDate",
+        "in": "query",
+        "required": false,
+        "description": "Fin del rango de búsqueda, sobre la fecha de procesamiento, en ISO 8601.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "externalId",
+        "in": "query",
+        "required": false,
+        "description": "Identificador del movimiento en el banco.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "sendingFromDate",
+        "in": "query",
+        "required": false,
+        "description": "Inicio del rango de fechas de envío programado, en ISO 8601.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "sendingToDate",
+        "in": "query",
+        "required": false,
+        "description": "Fin del rango de fechas de envío programado, en ISO 8601.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "scheduledTransactions",
+        "in": "query",
+        "required": false,
+        "description": "Si es `true`, solo devuelve transacciones programadas.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "types",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por tipo de transacción, por ejemplo `DEPOSIT` o `WITHDRAWAL`.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "DEPOSIT",
+              "WITHDRAWAL",
+              "WITHDRAWAL_INVESTMENT",
+              "DEPOSIT_INVESTMENT",
+              "YIELD",
+              "BILL_PAYMENT",
+              "REFUND",
+              "ECHEQ_WITHDRAWAL",
+              "ECHEQ_DEPOSIT",
+              "ECHEQ_REJECTED",
+              "ECHEQ_CERTIFICATE",
+              "COMISSION",
+              "TAXES_DEBIT",
+              "TAXES_REFUND",
+              "INTEREST",
+              "DEBIT_INVESTMENT",
+              "CREDIT_INVESTMENT",
+              "LOAN_PAYMENT",
+              "LOAN_CREDIT",
+              "COMEX_DEBIT",
+              "COMEX_CREDIT"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      {
+        "name": "operationTypes",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por tipo de operación: `MONEY_TRANSFER` envío de dinero, `BULK_TRANSFER` envío en lote, `BILL_PAYMENT` pago de impuestos y servicios, `PAYROLL` pago de haberes, `SMART_PAYMENT` pago inteligente, `SMART_COLLECTION` cobro inteligente, `DEPOSIT` depósito recibido, `YIELD` rendimiento y `TAXES` débitos y devoluciones de impuestos bancarios. Si mandás varios, se combinan con OR.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "MONEY_TRANSFER",
+              "BULK_TRANSFER",
+              "BILL_PAYMENT",
+              "PAYROLL",
+              "SMART_PAYMENT",
+              "SMART_COLLECTION",
+              "DEPOSIT",
+              "YIELD",
+              "TAXES"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      {
+        "name": "direction",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por sentido del movimiento: `INBOUND` si entra dinero a la cuenta u `OUTBOUND` si sale. Aplica a todos los tipos de transacción.",
+        "schema": {
+          "enum": [
+            "INBOUND",
+            "OUTBOUND"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "tags",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por etiqueta, por ejemplo `SALARY` o `SUPPLIER`.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "RENTAL",
+              "SUPPLIER",
+              "SALARY",
+              "INVESTMENT",
+              "SERVICE",
+              "BILL",
+              "LOAN",
+              "INSURANCE",
+              "OTHER"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      {
+        "name": "states",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por estado, por ejemplo `SUCCESS` o `PENDING`.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "PREVIEW",
+              "PENDING",
+              "PROCESSING",
+              "SUCCESS",
+              "FAILED",
+              "CANCELED",
+              "SCHEDULED"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      {
+        "name": "field",
+        "in": "query",
+        "required": false,
+        "description": "Campo por el que se ordena. Solo se aplica si mandás también `order`.",
+        "schema": {
+          "enum": [
+            "netAmount",
+            "totalAmount",
+            "processedAt",
+            "receipt"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "order",
+        "in": "query",
+        "required": false,
+        "description": "Sentido del orden: `asc` o `desc`. Solo se aplica si mandás también `field`.",
+        "schema": {
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "type": "string"
+        }
+      },
+      {
+        "name": "searchTerm",
+        "in": "query",
+        "required": false,
+        "description": "Texto a buscar en contacto, descripción, nota, comprobante, CBU o CVU, monto o ID.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "ID de la última transacción de la página anterior. Mandá el `cursor` de la respuesta para pedir la página siguiente.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "pageSize",
+        "in": "query",
+        "required": false,
+        "description": "Cantidad de resultados por página. Por defecto 10, máximo 100.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "depositAddressIds",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por una o más cuentas. Son los `id` de `GET /v3/deposit-address`.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      {
+        "name": "includeDedicatedDeposits",
+        "in": "query",
+        "required": false,
+        "description": "No tiene efecto en la API de partners.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "name": "bulkTransactionId",
+        "in": "query",
+        "required": false,
+        "description": "No tiene efecto en la API de partners.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/transaction/preview",
+    "method": "POST",
+    "path": "/v3/transaction/preview",
+    "summary": "Generar preview de transferencia (paso previo a confirmar)",
+    "description": "Crea una transferencia en estado `PREVIEW`. El `toId` sale de `GET /v3/bank-address/{value}`. Si la empresa tiene más de una cuenta CVU, `depositAddressId` elige de cuál sale la plata: es el `id` de una de las cuentas de `GET /v3/balance`; si no se manda, sale del CVU principal más antiguo. Para ejecutarla: si la cuenta destino es del mismo titular, confirmala con `PUT /v3/transaction/confirm/{id}`; si es de un tercero, creá una solicitud de firma con `POST /v3/signature-request/TRANSACTION_REQUEST` para que la apruebe un firmante. Al confirmarse pasa a `PENDING` y se procesa sola. Errores: `INVALID_AMOUNT`, `INVALID_CURRENCY`, `MISSING_WALLET`, `INSUFFICIENT_FUNDS`, `INTERNAL_NOTE_TOO_LONG` y `NOT_FOUND` si `depositAddressId` no es una de las cuentas CVU de `GET /v3/balance`.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "toId",
+        "amount",
+        "currencyCode"
+      ],
+      "properties": {
+        "toId": {
+          "description": "ID de la cuenta destino. Sale de `GET /v3/bank-address/{value}`.",
+          "type": "number"
+        },
+        "depositAddressId": {
+          "description": "ID de la cuenta CVU de origen. Sale de `addresses[].id` en `GET /v3/balance`. Si no se manda, la transferencia sale del CVU principal más antiguo de la empresa.",
+          "type": "number"
+        },
+        "amount": {
+          "description": "Monto a transferir, como string para no perder decimales.",
+          "type": "string"
+        },
+        "currencyCode": {
+          "description": "Moneda de la transferencia.",
+          "enum": [
+            "ARS",
+            "USD"
+          ],
+          "type": "string"
+        },
+        "tag": {
+          "description": "Etiqueta de la transferencia.",
+          "enum": [
+            "RENTAL",
+            "SUPPLIER",
+            "SALARY",
+            "INVESTMENT",
+            "SERVICE",
+            "BILL",
+            "LOAN",
+            "INSURANCE",
+            "OTHER"
+          ],
+          "type": "string"
+        },
+        "sendingDate": {
+          "description": "Fecha programada en ISO 8601. Si no se manda, se procesa en el momento.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "description": {
+          "description": "Motivo o concepto de la transferencia.",
+          "type": "string"
+        },
+        "internalNote": {
+          "description": "Nota interna, de hasta 500 caracteres.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "PUT /v3/transaction/confirm/{id}",
+    "method": "PUT",
+    "path": "/v3/transaction/confirm/{id}",
+    "summary": "Confirmar una transacción en estado PREVIEW",
+    "description": "Confirma una transacción en `PREVIEW`: pasa a `PENDING` y se procesa sola, hasta quedar en `SUCCESS` o `FAILED`. No sirve para los previews de reversa, que se crean y confirman solo con `POST /v3/transaction/reverse`. Errores: `INVALID_STATUS` si no está en `PREVIEW`, `INVALID_TRANSACTION` si es un preview de reversa o el retiro no es del mismo titular, y `NOT_OWNER` si es de otra empresa.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID de la transacción a confirmar.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/transaction/reverse",
+    "method": "POST",
+    "path": "/v3/transaction/reverse",
+    "summary": "Revertir un depósito",
+    "description": "Devuelve total o parcialmente un depósito recibido, con un retiro hacia la cuenta de origen. Se crea y confirma en el mismo pedido, sin solicitud de firma, y queda en `PENDING`; el resultado llega por el webhook `WITHDRAWAL`, y el retiro trae `reversalOfId`. El depósito tiene que ser `DEPOSIT`, estar en `SUCCESS` y ser de la empresa. La devolución se debita del mismo wallet donde se acreditó el depósito, no del wallet principal de la empresa. Se permiten varias reversas parciales hasta el `totalAmount` del depósito: el disponible es ese total menos el `netAmount` de las reversas vinculadas en `PENDING`, `PROCESSING`, `SCHEDULED` o `SUCCESS`, y las `FAILED` liberan su monto. La empresa absorbe la diferencia entre `totalAmount` y `netAmount` del depósito más las comisiones del retiro, así que ese wallet necesita saldo. Si dos reversas simultáneas superan el límite, la última termina en `FAILED` en vez de rechazarse al instante. Errores: `INVALID_TRANSACTION` si no es un depósito en `SUCCESS` o ya se devolvió todo, `INVALID_AMOUNT` si el monto no es positivo o supera lo disponible, `NOT_OWNER`, `NOT_FOUND` si el wallet donde se acreditó el depósito no tiene un CVU principal, y las validaciones habituales del retiro, como fondos insuficientes y límites transaccionales.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "transactionId"
+      ],
+      "properties": {
+        "transactionId": {
+          "description": "ID del depósito que se devuelve.",
+          "type": "number"
+        },
+        "amount": {
+          "description": "Monto a devolver, como string para no perder decimales. Si no se manda, se devuelve todo lo que queda disponible.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "GET /v3/transaction/receipt/{id}",
+    "method": "GET",
+    "path": "/v3/transaction/receipt/{id}",
+    "summary": "Descargar comprobante de una transacción",
+    "description": "Devuelve una URL firmada para descargar el comprobante en PDF de la transacción. La URL vence a los 60 minutos. Errores: `NOT_FOUND` si no existe y `NOT_OWNER` si es de otra empresa.",
+    "tags": [
+      "Transacciones"
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID de la transacción.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "GET /v3/bank-address/{value}",
+    "method": "GET",
+    "path": "/v3/bank-address/{value}",
+    "summary": "Consultar una cuenta bancaria por CBU/CVU/Alias",
+    "description": "Busca una cuenta bancaria por CBU, CVU o alias. El `id` del resultado se usa como `toId` al crear una transferencia con `POST /v3/transaction/preview`. Errores: `ADDRESS_NOT_FOUND` si no existe e `INVALID_ADDRESS` si el formato es inválido.",
+    "tags": [
+      "Búsqueda de Cuentas Bancarias"
+    ],
+    "parameters": [
+      {
+        "name": "value",
+        "in": "path",
+        "required": true,
+        "description": "CBU, CVU o alias de la cuenta a consultar.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "GET /v3/signature-request/",
+    "method": "GET",
+    "path": "/v3/signature-request/",
+    "summary": "Listar solicitudes de firma de la Company",
+    "description": "Lista las solicitudes de firma de la empresa, con paginación por cursor y filtro opcional por `status`. Cada una trae la transacción asociada y los datos del rechazo, si los hay.",
+    "tags": [
+      "Solicitudes de Firma"
+    ],
+    "parameters": [
+      {
+        "name": "pageSize",
+        "in": "query",
+        "required": false,
+        "description": "Cantidad de resultados por página.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "ID de la última solicitud de la página anterior. Mandá el `cursor` de la respuesta para pedir la página siguiente.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por estado: `PENDING`, `SIGNED` o `CANCELED`.",
+        "schema": {
+          "enum": [
+            "CANCELED",
+            "PENDING",
+            "SIGNED"
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/signature-request/{type}",
+    "method": "POST",
+    "path": "/v3/signature-request/{type}",
+    "summary": "Crear solicitud de firma para una transacción",
+    "description": "Crea una solicitud de firma para una transacción en estado `PREVIEW`, para que un signer la apruebe desde el Dashboard en vez de confirmarla vos; al aprobarla, la transacción se confirma sola. `type` es `TRANSACTION_REQUEST` para una transacción `WITHDRAWAL` o `BILL_PAYMENT`, o `BULK_REQUEST` para un lote. Devuelve el `id` de la solicitud. Errores: `INVALID_TRANSACTION` si no está en `PREVIEW` o no es `WITHDRAWAL` ni `BILL_PAYMENT`, `NOT_OWNER` si es de otra empresa y `NOT_FOUND` si no existe.",
+    "tags": [
+      "Solicitudes de Firma"
+    ],
+    "parameters": [
+      {
+        "name": "type",
+        "in": "path",
+        "required": true,
+        "description": "`TRANSACTION_REQUEST` para una transacción individual, `BULK_REQUEST` para un envío en lote.",
+        "schema": {
+          "enum": [
+            "TRANSACTION_REQUEST",
+            "BULK_REQUEST"
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "ID de la transacción o del lote que se manda a firmar.",
+          "type": "number"
+        },
+        "noteForSigner": {
+          "description": "Indicaciones para quien aprueba. Se muestra solo en la pantalla de Firmas.",
+          "type": "string"
+        },
+        "isUrgent": {
+          "description": "Marca la solicitud con la etiqueta \"Prioridad\" en Firmas. Por defecto `false`.",
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  {
+    "id": "PUT /v3/signature-request/{id}",
+    "method": "PUT",
+    "path": "/v3/signature-request/{id}",
+    "summary": "Rechazar una solicitud de firma pendiente",
+    "description": "Rechaza una solicitud de firma pendiente enviando `status: CANCELED`. La API no aprueba solicitudes: eso lo hace un signer desde el Dashboard. Devuelve `true`. Errores: `NOT_OWNER` si es de otra empresa y `NOT_FOUND` si no existe.",
+    "tags": [
+      "Solicitudes de Firma"
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID de la solicitud de firma.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    ],
+    "body": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "description": "Nuevo estado. `CANCELED` rechaza la solicitud.",
+          "enum": [
+            "CANCELED",
+            "PENDING",
+            "SIGNED"
+          ],
+          "type": "string"
+        },
+        "rejectionReason": {
+          "description": "Motivo del rechazo.",
+          "enum": [
+            "INVALID_DATA",
+            "DUPLICATED",
+            "NOT_AUTHORIZED",
+            "INSUFFICIENT_FUNDS",
+            "EXPIRED",
+            "OTHER"
+          ],
+          "type": "string"
+        },
+        "rejectionNote": {
+          "description": "Detalle del rechazo.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "POST /v3/invoice/",
+    "method": "POST",
+    "path": "/v3/invoice/",
+    "summary": "Crear facturas de cobro (cuentas por cobrar)",
+    "description": "Crea una o más facturas de cobro, que son montos que la empresa espera recibir de sus pagadores. El body es un array, así que se pueden crear varias en un pedido. Devuelve las facturas de la empresa, incluidas las nuevas.",
+    "tags": [
+      "Cuentas por Cobrar"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "amount",
+          "payerNationalIdentifier",
+          "payerName",
+          "status"
+        ],
+        "properties": {
+          "amount": {
+            "description": "Monto de la factura.",
+            "type": "number"
+          },
+          "description": {
+            "description": "Descripción o concepto de la factura.",
+            "type": "string"
+          },
+          "internalNote": {
+            "description": "Nota interna. No la ve el pagador.",
+            "type": "string"
+          },
+          "payerInternalNote": {
+            "description": "Nota interna sobre el pagador.",
+            "type": "string"
+          },
+          "payerNationalIdentifier": {
+            "description": "CUIT o CUIL del pagador.",
+            "type": "string"
+          },
+          "payerName": {
+            "description": "Nombre del pagador.",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Fecha de vencimiento, en ISO 8601.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "description": "Fecha de emisión, en ISO 8601. Si no la mandás, es ahora.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "payerEmail": {
+            "description": "Email del pagador.",
+            "type": "string"
+          },
+          "externalId": {
+            "description": "Tu referencia de la factura.",
+            "type": "string"
+          },
+          "fileKey": {
+            "description": "Clave en S3 del archivo adjunto, subido antes.",
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "status": {
+            "description": "Estado inicial de la factura.",
+            "enum": [
+              "DRAFT",
+              "PENDING",
+              "PARTIAL",
+              "PAID",
+              "CANCELED"
+            ],
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "PUT /v3/company-tax/",
+    "method": "PUT",
+    "path": "/v3/company-tax/",
+    "summary": "Definir el markup de un cliente",
+    "description": "Crea o actualiza el markup del cliente indicado en `x-company-id`, la única comisión que puede modificar el partner. El CVU principal del cliente no paga comisiones de partner. Devuelve `true`, o `INVALID_AMOUNT` si el valor no cumple los límites.",
+    "tags": [
+      "Comisiones de tus clientes"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "description": "Única key que puede modificar el partner.",
+          "type": "string",
+          "enum": [
+            "PARTNER_MARKUP_PERCENTAGE_TAX"
+          ]
+        },
+        "value": {
+          "pattern": "^\\d+(\\.\\d+)?$",
+          "description": "Porcentaje con IVA incluido. Mayor o igual a 0 y, sumado a la comisión de Cresium, menor a 100.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "GET /v3/company-tax/default",
+    "method": "GET",
+    "path": "/v3/company-tax/default",
+    "summary": "Consultar el markup base para clientes nuevos",
+    "description": "Devuelve el markup base del partner, o `null` si no hay.",
+    "tags": [
+      "Comisiones de tus clientes"
+    ],
+    "parameters": [],
+    "body": null
+  },
+  {
+    "id": "PUT /v3/company-tax/default",
+    "method": "PUT",
+    "path": "/v3/company-tax/default",
+    "summary": "Definir el markup base para clientes nuevos",
+    "description": "Actualiza el markup base del partner. Se copia a cada cliente nuevo que se asigne al partner; los clientes existentes no cambian.",
+    "tags": [
+      "Comisiones de tus clientes"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "pattern": "^\\d+(\\.\\d+)?$",
+          "description": "Porcentaje con IVA incluido. Mayor o igual a 0 y, sumado a la comisión de Cresium, menor a 100.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "id": "GET /v3/company-tax/{key}",
+    "method": "GET",
+    "path": "/v3/company-tax/{key}",
+    "summary": "Consultar la comisión Cresium o el markup de un cliente",
+    "description": "Devuelve una comisión del cliente indicado en `x-company-id`: la de Cresium o el markup del partner.",
+    "tags": [
+      "Comisiones de tus clientes"
+    ],
+    "parameters": [
+      {
+        "name": "key",
+        "in": "path",
+        "required": true,
+        "description": "`PARTNER_DEBIT_PERCENTAGE_TAX` es la comisión de Cresium y `PARTNER_MARKUP_PERCENTAGE_TAX` la del partner.",
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "PARTNER_DEBIT_PERCENTAGE_TAX"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "PARTNER_MARKUP_PERCENTAGE_TAX"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "body": null
+  },
+  {
+    "id": "POST /v3/sandbox/deposit",
+    "method": "POST",
+    "path": "/v3/sandbox/deposit",
+    "summary": "Simular un deposito a un CVU",
+    "description": "Simula un depósito entrante a un CVU de la empresa, sin pasar por el banco. Recorre el mismo circuito que uno real: crea la transacción `DEPOSIT`, aplica comisiones, acredita el saldo, actualiza el pago único del CVU (`amountPaid` y `status`) y envía el webhook `DEPOSIT`, con la acreditación y el webhook unos segundos después de la respuesta. Solo está disponible en sandbox: en producción responde `FORBIDDEN`. Errores: `NOT_FOUND` si el CVU no existe en la empresa o ya fue dado de baja, y `UNAUTHORIZED` si la firma es inválida o la empresa no está asignada al partner.",
+    "tags": [
+      "Sandbox"
+    ],
+    "parameters": [],
+    "body": {
+      "type": "object",
+      "required": [
+        "cvu",
+        "amount"
+      ],
+      "properties": {
+        "cvu": {
+          "description": "CVU que recibe el depósito, por ejemplo el que devuelve `POST /v3/payment-order`.",
+          "type": "string"
+        },
+        "amount": {
+          "exclusiveMinimum": 0,
+          "description": "Monto del depósito en ARS.",
+          "type": "number"
+        },
+        "fromName": {
+          "description": "Nombre de quien paga. Por defecto `Pagador Sandbox`.",
+          "type": "string"
+        },
+        "fromNationalIdentifier": {
+          "description": "CUIT o CUIL de quien paga. Por defecto `20111111112`.",
+          "type": "string"
+        }
+      }
+    }
+  }
+]
