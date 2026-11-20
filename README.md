@@ -43,6 +43,13 @@ claude mcp add --transport http cresium https://mcp.cresium.app/sandbox \
 }
 ```
 
+### Cursor and VS Code install links
+
+These open the editor with the sandbox server added. The headers carry placeholders (`YOUR_API_KEY`, `YOUR_SECRET`, `YOUR_COMPANY_ID`): replace them in the editor's MCP settings with your own values before connecting, and never paste real keys into a link.
+
+- [Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=cresium&config=eyJ1cmwiOiJodHRwczovL21jcC5jcmVzaXVtLmFwcC9zYW5kYm94IiwiaGVhZGVycyI6eyJ4LWFwaS1rZXkiOiJZT1VSX0FQSV9LRVkiLCJ4LWFwaS1zZWNyZXQiOiJZT1VSX1NFQ1JFVCIsIngtY29tcGFueS1pZCI6IllPVVJfQ09NUEFOWV9JRCJ9fQ%3D%3D)
+- [Add to VS Code](vscode:mcp/install?%7B%22name%22%3A%22cresium%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.cresium.app%2Fsandbox%22%2C%22headers%22%3A%7B%22x-api-key%22%3A%22YOUR_API_KEY%22%2C%22x-api-secret%22%3A%22YOUR_SECRET%22%2C%22x-company-id%22%3A%22YOUR_COMPANY_ID%22%7D%7D)
+
 ### Codex (`~/.codex/config.toml`)
 
 ```toml
@@ -109,6 +116,12 @@ cresium-mcp  (src/http/app.ts)
 ### Search goldens
 
 `test/search-goldens.ts` lists the phrases partners use, in Spanish and English, and the operation `search_api` must return for each in its top 3 (or nothing, for words the catalogue does not cover, like `webhook`). `test/search-goldens.test.ts` reports every phrase that fails and what search returned instead. Because the catalogue is regenerated after each production deploy, a failing golden after `bun run spec:update` means partners' words no longer find the right operation: add a synonym in `src/api/constants.ts` or fix the golden if the API really changed. There is no switch: it is a test.
+
+### Tool metadata and registry listing
+
+Every tool has a `title` and the behavior hints `readOnlyHint`, `destructiveHint` and `idempotentHint`, so clients can show a name and decide when to ask. Reads are read-only and idempotent; `write_api` is destructive and not idempotent; `send_docs_feedback` is neither. The server also names itself `Cresium` with its website. Hints are only hints: a client must not rely on them for safety.
+
+`server.json` describes the two remotes for the [official MCP registry](https://github.com/modelcontextprotocol/registry). It is not published: publishing needs proof that Cresium owns the `app.cresium` namespace. `test/server-json.test.ts` keeps its URLs and header names in step with the code. There is no switch.
 
 ## Develop
 

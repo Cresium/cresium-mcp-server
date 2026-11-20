@@ -24,6 +24,8 @@ export const USER_FACING_ERROR_NAME = "UserFacingError";
 /** How this server names itself to MCP peers (clients and the docs server). */
 export const SERVER_INFO = {
   name: packageJson.name,
+  title: "Cresium",
+  websiteUrl: "https://docs.cresium.com",
   version: packageJson.version,
 } as const;
 
