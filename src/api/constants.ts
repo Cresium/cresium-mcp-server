@@ -1,7 +1,44 @@
 export const SEARCH_LIMIT = 8;
 
 export const TITLE_MATCH_SCORE = 3;
-export const DESCRIPTION_MATCH_SCORE = 1;
+/** Added when the word is in the summary itself, so "comisiones" finds the operation about one before the tag shared by four. */
+export const SUMMARY_MATCH_BONUS = 1;
+
+/** Shortest word that may lose a plural ending, so "cvus" matches "cvu" but "mis" stays as it is. */
+export const MIN_PLURAL_WORD_LENGTH = 5;
+
+/** Words that say nothing about the operation and would match inside any other word ("de" is in "dedicado"). */
+export const SEARCH_STOPWORDS: ReadonlySet<string> = new Set([
+  "a",
+  "al",
+  "con",
+  "de",
+  "del",
+  "el",
+  "en",
+  "la",
+  "las",
+  "los",
+  "mi",
+  "mis",
+  "para",
+  "por",
+  "un",
+  "una",
+  "y",
+  "o",
+  "an",
+  "and",
+  "for",
+  "from",
+  "in",
+  "my",
+  "of",
+  "the",
+  "to",
+  "what",
+  "does",
+]);
 
 /** Words partners use that the catalogue spells differently. Keys and values are lowercase without accents. */
 export const SEARCH_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
@@ -22,6 +59,14 @@ export const SEARCH_SYNONYMS: ReadonlyMap<string, readonly string[]> = new Map([
   ["fee", ["comision", "markup"]],
   ["payment", ["pago"]],
   ["account", ["cuenta"]],
+  ["transaction", ["transaccion"]],
+  ["invoice", ["factura", "cobrar"]],
+  ["cobro", ["pago unico"]],
+  ["cobrar", ["pago unico"]],
+  ["create", ["crear"]],
+  ["list", ["listar", "buscar"]],
+  ["deactivate", ["baja"]],
+  ["cancel", ["borrar", "baja"]],
 ]);
 
 /** A cheap signed read every partner key can run; check_connection uses it to prove the credentials work. */

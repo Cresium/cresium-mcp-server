@@ -100,7 +100,7 @@ function searchText(query: string): string {
   }
   const found = searchOperations(query, SEARCH_LIMIT);
   if (found.length === 0) {
-    return `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas.`;
+    return `Ninguna operación coincide con "${query}". Probá con otras palabras o con query vacía para ver todas. Para webhooks y guías usá search_docs.`;
   }
   return JSON.stringify(found.map(describeOperation));
 }
